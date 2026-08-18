@@ -1,6 +1,6 @@
 # Agent Forge — Developer Setup & Integration Guide
 
-This guide covers local environment setup, running unit tests, starting the services, and contributing code.
+This guide covers local environment setup, running unit tests, starting backend services, configuring the Next.js frontend, and contributing code.
 
 ---
 
@@ -8,9 +8,10 @@ This guide covers local environment setup, running unit tests, starting the serv
 
 ### Prerequisites
 - Python 3.11+
+- Node.js 18+ / npm
 - Git
 
-### Virtual Environment
+### Backend Setup
 ```bash
 cd Agent_Forge
 python3 -m venv .venv
@@ -35,14 +36,17 @@ uvicorn app.main:app --reload --port 8000
 ```
 Interactive Swagger API documentation will be available at: `http://localhost:8000/docs`
 
-### Streamlit Dashboard
+### Next.js Frontend Dashboard (PLANNED / In Development on `member-4`)
 ```bash
-streamlit run frontend/streamlit_app.py
+cd frontend
+npm install
+npm run dev
 ```
+Dashboard will be accessible at: `http://localhost:3000`
 
 ---
 
-## 3. Running Unit Tests
+## 3. Running Backend Unit Tests
 
 Run pytest across all schemas and entrypoints:
 ```bash
@@ -53,4 +57,4 @@ pytest -v
 
 ## 4. Git Branch Workflow & PRs
 
-Refer to [`CONTRIBUTING.md`](../CONTRIBUTING.md) for full branch strategy, conventional commit standards, and PR submission rules.
+Refer to [`CONTRIBUTING.md`](../CONTRIBUTING.md) for full branch strategy (`main`, `common`, `member-1` .. `member-4`), conventional commit standards, and PR submission rules.

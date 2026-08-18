@@ -1,62 +1,83 @@
 # Agent Forge — Subsystem Architecture & Flow
 
-This document details the detailed subsystem design, module interactions, and self-evolution loop of **Agent Forge**.
+This document details the subsystem design, module interactions, frontend-backend communications, and self-evolution loop of **Agent Forge**.
 
 ---
 
 ## 1. High-Level Architecture Flow
 
 ```
-User Task
-    │
-    ▼
-[Meta Controller]  ──► Analyzes prompt, decomposes subtasks & extracts required capabilities
-    │
-    ▼
-[Architecture Generator & Tool Planner]  ──► Synthesizes dynamic topology & assigns tools
-    │
-    ▼
-[Dynamic Agent Factory]  ──► Instantiates executable runtime Agent Objects from JSON config
-    │
-    ▼
-[Execution Engine (LangGraph)]  ──► Runs Pipeline / Parallel multi-agent graph
-    │
-    ▼
-[Evaluator]  ──► Computes Task Success, Output Quality & Resource Metrics
-    │
-    ▼
-[Reflection Engine]  ──► Identifies structural vulnerabilities (e.g. missing verifier)
-    │
-    ▼
-[Evolution Memory Store]  ──► Persists experience pairs for future architecture synthesis optimization
+Natural Language User Task
+            │
+            ▼
+┌───────────────────────┐
+│    Meta Controller    │ ──► Analyzes prompt, decomposes subtasks & extracts required capabilities
+└───────────┬───────────┘
+            │
+            ▼
+┌───────────────────────┐
+│ Architecture Generator│ ──► Synthesizes dynamic topology & assigns tools
+│    & Tool Planner     │
+└───────────┬───────────┘
+            │
+            ▼
+┌───────────────────────┐
+│ Dynamic Agent Factory │ ──► Instantiates executable runtime Agent Objects from JSON config
+└───────────┬───────────┘
+            │
+            ▼
+┌───────────────────────┐
+│   Execution Engine    │ ──► Runs Pipeline / Parallel multi-agent graph via LangGraph
+└───────────┬───────────┘
+            │
+            ▼
+┌───────────────────────┐
+│       Evaluator       │ ──► Computes Task Success, Output Quality & Resource Metrics
+└───────────┬───────────┘
+            │
+            ▼
+┌───────────────────────┐
+│   Reflection Engine   │ ──► Identifies structural vulnerabilities (e.g. missing verifier)
+└───────────┬───────────┘
+            │
+            ▼
+┌───────────────────────┐
+│ Evolution Memory Store│ ──► Persists experience pairs for future architecture synthesis optimization
+└───────────┬───────────┘
+            │ (Reflective Experience)
+            └─────────────────────────► [Feedback Loop to Meta Controller]
 ```
 
 ---
 
-## 2. Component Details
+## 2. System Architecture & Tier Breakdown
 
-### Meta Controller (`app/controller/`)
-- **Responsibility**: Interprets unstructured natural language task inputs into structured `TaskSpec` models.
-- **Sub-modules**:
-  - `task_analyzer.py`: Main entry point for task parsing.
-  - `task_decomposer.py`: Breaks complex goals into discrete subtasks.
-  - `complexity_analyzer.py`: Measures task difficulty to determine required agent team depth.
-  - `capability_extractor.py`: Maps subtasks to required agent capabilities.
+```
+                    AGENT FORGE ARCHITECTURE
+                               │
+               ┌───────────────┴───────────────┐
+               │                               │
+               ▼                               ▼
+       NEXT.JS FRONTEND                 FASTAPI BACKEND
+       React + TypeScript              Python 3.11+
+       Tailwind CSS + shadcn/ui        LangGraph Orchestration
+       React Flow (Graph Viz)          Google Gemini API
+                                       PostgreSQL & Redis
+               │                               │
+               └────── REST API / WebSockets ──┘
+```
 
-### Architecture Generator & Tool Planner (`app/controller/architecture_generator.py`, `app/tools/`)
-- **Responsibility**: Formulates `ArchitectureSpec` JSON defining topology type, dynamic agent count, prompts, and tool attachments.
+### Frontend Tier (Next.js + React Flow)
+- **Role**: Dynamic visualization, interactive user task submission, agent graph inspection, real-time execution monitoring, and evolution comparison.
+- **Key Modules**:
+  - `components/architecture/`: Interactive React Flow graph visualizing dynamically synthesized agent topologies.
+  - `components/execution/`: Real-time agent status indicators and step-by-step logs.
+  - `components/evaluation/`: Metric charts comparing Run 1 vs. Run 2 architectures.
 
-### Dynamic Agent Factory (`app/agents/`)
-- **Responsibility**: Dynamically constructs executable `BaseAgent` instances at runtime without relying on hard-coded `if/else` logic.
-
-### LangGraph Execution Engine (`app/execution/`)
-- **Responsibility**: Constructs dynamic `StateGraph` topologies (Pipeline, Parallel) to manage message passing, state retention, and failure retries across generated agents.
-
-### Evaluator & Failure Analyzer (`app/evaluation/`)
-- **Responsibility**: Assesses task completeness, output quality, execution time, and tool utilization.
-
-### Reflection Engine & Architecture Modifier (`app/reflection/`)
-- **Responsibility**: Diagnoses why an architecture scored poorly and generates concrete mutation recommendations (e.g. adding a Verification Agent or splitting research into parallel sub-agents).
-
-### Evolution Memory Store (`app/memory/`)
-- **Responsibility**: Stores historical execution & reflection records so future similar tasks retrieve previous architectural experience.
+### Backend Tier (FastAPI + LangGraph)
+- **Role**: Task analysis, architecture synthesis, dynamic agent instantiation, graph execution, quantitative evaluation, reflection, and memory persistence.
+- **Key Modules**:
+  - `app/controller/`: Meta Controller & Architecture Generator (Member 1).
+  - `app/agents/`, `app/tools/`, `app/execution/`: Agent Factory, Tool Planner, and LangGraph Engine (Member 2).
+  - `app/evaluation/`, `app/reflection/`: Metric scoring & Reflection Engine (Member 3).
+  - `app/memory/`, `app/api/`: Evolution Memory & REST API Endpoints (Member 4).

@@ -14,10 +14,6 @@ httpx>=0.27.0
 psycopg2-binary>=2.9.9
 redis>=5.0.4
 
-# Frontend Dashboard
-streamlit>=1.35.0
-
 # Testing & Code Quality
 pytest>=8.2.0
 pytest-asyncio>=0.23.7
-httpx>=0.27.0

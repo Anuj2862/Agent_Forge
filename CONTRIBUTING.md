@@ -17,7 +17,7 @@ Development work occurs on dedicated member branches branched off `common`:
 - `member-1`: Meta Controller + Task Analysis + Architecture Generator
 - `member-2`: Agent Factory + Tool Planner + Communication Graph + Execution Engine
 - `member-3`: Evaluator + Failure Analyzer + Reflection Engine + Architecture Improvement
-- `member-4`: Evolution Memory + FastAPI + Streamlit + Integration
+- `member-4`: Evolution Memory + FastAPI + Next.js Frontend + React Flow Visualization + Integration
 
 ---
 
