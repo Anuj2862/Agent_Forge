@@ -116,15 +116,18 @@ Agent Forge is developed by a team of four, divided into modular subsystem domai
 
 ## 6. Repository Workflow & Branch Strategy
 
-The team maintains **one common repository** adhering to strict feature-branch isolation:
+The team maintains **one common repository** adhering to structured branch isolation:
 
 - `main`: Protected, production-ready release branch.
-- `develop`: Integration branch for active feature development.
-- `feature/*`: Dedicated branches for member modules (`feature/meta-controller`, `feature/agent-runtime`, `feature/evaluation-reflection`, `feature/memory-platform`).
+- `common`: Shared integration and development branch for all four members.
+- `member-1`: Meta Controller + Task Analysis + Architecture Generator
+- `member-2`: Agent Factory + Tool Planner + Communication Graph + Execution Engine
+- `member-3`: Evaluator + Failure Analyzer + Reflection Engine + Architecture Improvement
+- `member-4`: Evolution Memory + FastAPI + Streamlit + Integration
 
 ### Contribution Workflow
 ```
-Feature Branch  ➔  Local Testing  ➔  Commit  ➔  Pull Request  ➔  develop  ➔  Integration Testing  ➔  main
+Member Branch  ➔  Local Testing  ➔  Commit  ➔  Pull Request  ➔  common  ➔  Integration Testing  ➔  main
 ```
 
 ---

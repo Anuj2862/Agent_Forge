@@ -9,20 +9,15 @@ Welcome to the **Agent Forge** engineering design and innovation repository. To 
 We utilize a centralized Git workflow with two primary long-lived branches and dedicated short-lived feature branches:
 
 ### Primary Branches
-- `main`: Production-ready, stable codebase. **No direct pushes permitted.**
-- `develop`: Integration branch where feature branches are merged after testing.
+- `main`: Stable, tested, and integrated release branch. **No direct pushes permitted.**
+- `common`: Shared integration and development branch for all four members.
 
-### Feature Branches
-All development work must occur on dedicated feature branches branched off `develop`.
-
-Branch naming format: `feature/<module-name>` or `fix/<bug-description>`
-
-Examples:
-- `feature/meta-controller` (Member 1)
-- `feature/agent-runtime` (Member 2)
-- `feature/evaluation-reflection` (Member 3)
-- `feature/memory-platform` (Member 4)
-- `fix/schema-validation-error`
+### Member Branches
+Development work occurs on dedicated member branches branched off `common`:
+- `member-1`: Meta Controller + Task Analysis + Architecture Generator
+- `member-2`: Agent Factory + Tool Planner + Communication Graph + Execution Engine
+- `member-3`: Evaluator + Failure Analyzer + Reflection Engine + Architecture Improvement
+- `member-4`: Evolution Memory + FastAPI + Streamlit + Integration
 
 ---
 
@@ -55,14 +50,14 @@ Commits should be small, atomic, and descriptive. Use standard conventional comm
 ## 3. Pull Request (PR) Workflow
 
 ```
-Feature Branch ──► Local Testing ──► Git Commit ──► PR to develop ──► Integration Testing ──► Merge to main
+Member Branch  ──► Local Testing  ──► Git Commit  ──► PR to common  ──► Integration Testing  ──► Merge to main
 ```
 
 1. **Keep PRs Focused**: A PR should address a single responsibility domain.
 2. **Self-Review**: Run local tests (`pytest`) before requesting review.
 3. **PR Description**: Include a summary of changes, components affected, and verification steps.
-4. **Code Review**: At least one other team member must review and approve the PR before merging into `develop`.
-5. **Merging to Main**: Merges from `develop` to `main` occur only during scheduled integration milestones.
+4. **Code Review**: At least one other team member must review and approve the PR before merging into `common`.
+5. **Merging to Main**: Merges from `common` to `main` occur only during scheduled integration milestones.
 
 ---
 
@@ -105,4 +100,4 @@ Shared Pydantic contracts in `app/schemas/` define the API boundaries between me
   ```bash
   pytest
   ```
-- Un-tested PRs or broken integration builds will not be merged into `develop`.
+- Un-tested PRs or broken integration builds will not be merged into `common`.
