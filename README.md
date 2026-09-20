@@ -1,7 +1,8 @@
 # Agent Forge: Autonomous Multi-Agent Architecture Synthesis and Evolution Framework
 
 [![Python Version](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://python.org)
-[![Framework](https://img.shields.io/badge/Orchestration-LangGraph-orange.svg)](https://github.com/langchain-ai/langgraph)
+[![Frontend](https://img.shields.io/badge/Frontend-Next.js_|_React_|_TypeScript_|_React_Flow-black.svg)](https://nextjs.org)
+[![Orchestration](https://img.shields.io/badge/Orchestration-LangGraph-orange.svg)](https://github.com/langchain-ai/langgraph)
 [![LLM](https://img.shields.io/badge/LLM-Gemini_API-brightgreen.svg)](https://ai.google.dev/)
 [![Status](https://img.shields.io/badge/Status-Mid--Sem_Development_Phase-yellow.svg)](#current-project-status)
 
@@ -9,13 +10,13 @@
 
 ## 1. Project Overview & Core Concept
 
-**Agent Forge** is an **autonomous multi-agent architecture synthesis and evolution framework** designed for complex software-based AI and Deep-Tech EDI applications.
+**Agent Forge** is an **autonomous multi-agent architecture synthesis and evolution framework** designed as a software-based AI and Deep-Tech Engineering Design and Innovation (EDI) system with future patent potential.
 
 ### The Central Paradigm Shift
-Traditional multi-agent systems use developer-defined, hard-coded workflows (e.g., `User Task ➔ Research Agent ➔ Analysis Agent ➔ Writer Agent`). The topology, roles, and tool bindings remain static regardless of task domain or past execution failures.
+Traditional multi-agent frameworks (e.g., rigid DAG chains) force developers to pre-define static agent team topologies (e.g., `User Task ➔ Research Agent ➔ Analysis Agent ➔ Writer Agent`). Regardless of task complexity, domain variations, or past failure patterns, the agent composition and communication topology remain unchanged.
 
-**Agent Forge fundamentally changes this model:**
-> Given a natural-language task, Agent Forge dynamically analyzes the requirements, synthesizes a custom multi-agent architecture (topology, agent roles, capabilities, and tool bindings), instantiates the agents dynamically, executes the graph, evaluates execution quality, reflects on structural weaknesses, and records architectural experience in an **Evolution Memory** to autonomously improve future team synthesis.
+**Agent Forge fundamentally shifts this paradigm:**
+> Given an unstructured natural-language task, Agent Forge dynamically determines what AI agent architecture should be synthesized, generates the requisite agents and tool bindings, executes the multi-agent graph, quantitatively evaluates execution quality, reflects on structural weaknesses, and records architectural experience in an **Evolution Memory** so that future architecture synthesis is autonomously improved.
 
 ```
                     ┌──────────────────────────────────────────┐
@@ -25,6 +26,11 @@ Traditional multi-agent systems use developer-defined, hard-coded workflows (e.g
                                         ▼
                     ┌──────────────────────────────────────────┐
                     │             Meta Controller              │
+                    └───────────────────┬──────────────────────┘
+                                        │
+                                        ▼
+                    ┌──────────────────────────────────────────┐
+                    │          Task Analysis Engine            │
                     └───────────────────┬──────────────────────┘
                                         │
                                         ▼
@@ -39,7 +45,12 @@ Traditional multi-agent systems use developer-defined, hard-coded workflows (e.g
                                         │
                                         ▼
                     ┌──────────────────────────────────────────┐
-                    │ Generated Agent Team (Execution Engine)  │
+                    │      Generated Agent Architecture        │
+                    └───────────────────┬──────────────────────┘
+                                        │
+                                        ▼
+                    ┌──────────────────────────────────────────┐
+                    │   Execution Engine (LangGraph Runtime)   │
                     └───────────────────┬──────────────────────┘
                                         │
                                         ▼
@@ -57,102 +68,165 @@ Traditional multi-agent systems use developer-defined, hard-coded workflows (e.g
 
 ---
 
-## 2. System Architecture & Major Components
+## 2. System Architecture & Component Responsibilities
 
-1. **Meta Controller**: Decomposes user tasks into subtasks, assesses complexity, extracts required capabilities, and formulates high-level task specifications.
-2. **Architecture Generator**: Synthesizes custom agent topologies (Pipeline, Parallel) and agent role compositions dynamically.
-3. **Tool Planner**: Evaluates agent needs and dynamically binds appropriate tools (Web Search, Python Exec, Document Retriever).
-4. **Agent Factory**: Instantiates executable runtime agent objects from JSON architecture specifications without static `if/else` logic.
-5. **Execution Engine (LangGraph)**: Schedules and executes the dynamic agent communication graph, managing state, retries, and message passing.
-6. **Evaluator**: Computes objective execution metrics (Task Success, Quality, Completeness, Execution Time, Tool Efficiency).
-7. **Reflection Engine**: Diagnoses architectural root causes for lower scores (e.g., missing verification stage, inadequate research depth) and recommends explicit structural modifications.
-8. **Evolution Memory Store**: Persists architectural experience pairs `(Task Specification, Architecture, Evaluation, Reflection, Recommendation)` to optimize future synthesis.
-
----
-
-## 3. Technology Stack
-
-- **Core Programming**: Python 3.11+
-- **LLM Engine**: Google Gemini API
-- **Agent Orchestration**: LangGraph
-- **Backend & Data Validation**: FastAPI, Uvicorn, Pydantic v2
-- **Database & Memory**: PostgreSQL + `pgvector`, Redis
-- **Frontend Dashboard**: Streamlit
-- **Testing**: `pytest`, `pytest-asyncio`
+1. **Meta Controller**: Parses the user task prompt, categorizes task domain, decomposes subtasks, assesses complexity, and formulates high-level capability requirements.
+2. **Architecture Generator**: Synthesizes task-specific agent topologies (Pipeline, Parallel) and agent role compositions dynamically.
+3. **Tool Planner**: Evaluates agent capability requirements and dynamically binds appropriate tools (Web Search, Python Interpreter, Document Retriever).
+4. **Dynamic Agent Factory**: Instantiates executable runtime agent objects from JSON architecture specifications without static `if/else` logic.
+5. **Execution Engine (LangGraph)**: Schedules and executes the dynamic agent communication graph, managing state retention, retries, and message passing.
+6. **Evaluator**: Computes objective execution metrics (Task Success, Output Quality, Completeness, Execution Time, Tool Usage).
+7. **Reflection Engine**: Diagnoses structural root causes for lower scores (e.g., missing verification stage, inadequate research depth) and recommends explicit architectural modifications.
+8. **Evolution Memory Store**: Persists architectural experience records `(Task Specification, Architecture, Evaluation, Reflection, Recommendation)` to guide future synthesis.
 
 ---
 
-## 4. Team Ownership & Responsibilities
+## 3. Modern Frontend Architecture (Next.js + React Flow)
 
-Agent Forge is developed by a team of four, divided into modular subsystem domains:
+Agent Forge is designed with a modern, production-oriented web dashboard architecture using **Next.js, React, TypeScript, Tailwind CSS, shadcn/ui, and React Flow**.
 
-| Member | Primary Modules & Responsibilities | Key Deliverables |
+### Rationale for Next.js + React Flow over Legacy Prototypes
+- **Interactive Node-Edge Graph Visualization**: Uses **React Flow** to dynamically render synthesized agent network topologies as interactive, inspectable visual node graphs rather than static diagrams.
+- **Component-Driven Monitoring**: The frontend architecture is designed to support real-time execution tracking, step-by-step agent monitoring, evaluation metric breakdowns, and side-by-side architecture comparison (Run 1 vs Run 2). *(WebSocket-based real-time streaming is PLANNED.)*
+- **Clean Separation of Concerns**: Structured separation between client-side rendering (CSR), server-side rendering (SSR), and REST/WebSocket API endpoints.
+
+```
+frontend/
+├── app/                  # Next.js App Router (pages & layout containers)
+│   ├── layout.tsx        # Root layout & design system providers
+│   ├── page.tsx          # Main dashboard & prompt submission portal
+│   └── history/          # Evolution memory & architectural run history
+├── components/           # UI Component System
+│   ├── architecture/     # React Flow graph visualization & node customizers
+│   ├── execution/        # Live agent execution status & message stream monitors
+│   ├── evaluation/       # Evaluation metrics & quality comparison charts
+│   └── ui/               # shadcn/ui design primitives
+├── lib/                  # API client, WebSocket hooks, and state utilities
+├── public/               # Static assets
+├── package.json          # Node.js dependencies & scripts
+└── tsconfig.json         # TypeScript configuration
+```
+
+---
+
+## 4. Frontend ↔ Backend System Architecture
+
+```
+                            AGENT FORGE ARCHITECTURE
+                                       │
+                       ┌───────────────┴───────────────┐
+                       │                               │
+                       ▼                               ▼
+               NEXT.JS FRONTEND                 FASTAPI BACKEND
+               React + TypeScript              Python 3.11+
+               Tailwind CSS + shadcn/ui        LangGraph Orchestration
+               React Flow (Graph Viz)          Google Gemini API
+                                                PostgreSQL
+                                                Redis
+                                                pgvector (PLANNED)
+                       │                               │
+                       └────── REST API / WebSockets ──┘
+```
+
+- **REST API**: Handles task submission, architecture retrieval, evaluation metric querying, and evolution memory search.
+- **WebSockets *(PLANNED)***: Enables event streaming of active agent node states and tool execution logs to the React Flow visualizer.
+
+---
+
+## 5. Technology Stack Matrix
+
+| Layer | Technology | Status |
 | :--- | :--- | :--- |
-| **Member 1** | Meta Controller, Task Analyzer, Task Decomposer, Architecture Generator | Natural language task ➔ Task Specification ➔ Architecture JSON |
-| **Member 2** | Base Agent, Agent Factory, Tool Planner, Tool Registry, Execution Engine | Architecture JSON ➔ Dynamic Agent Objects ➔ LangGraph Execution Result |
-| **Member 3** | Evaluator, Metrics Engine, Quality Scorer, Failure Analyzer, Reflection Engine | Execution Result ➔ Evaluation ➔ Reflection ➔ Architectural Modification |
-| **Member 4** | Evolution Memory, Memory Retriever, FastAPI Backend, Streamlit UI, Integration | Memory Persistence ➔ REST API ➔ Streamlit Dashboard ➔ E2E Integration |
+| **Frontend Framework** | Next.js (App Router), React, TypeScript | *IN DEVELOPMENT* |
+| **Frontend UI & Styling** | Tailwind CSS, shadcn/ui | *IN DEVELOPMENT* |
+| **Graph Visualization** | React Flow | *IN DEVELOPMENT* |
+| **Backend Framework** | Python 3.11+, FastAPI, Uvicorn, Pydantic v2 | **IMPLEMENTED (SCAFFOLDING)** |
+| **LLM Provider** | Google Gemini API (`google-genai`) | **CONFIGURED** |
+| **Agent Orchestration** | LangGraph | **CONFIGURED** |
+| **Database** | PostgreSQL | *CONFIGURED / PLANNED* |
+| **Cache / State** | Redis | *CONFIGURED / PLANNED* |
+| **Vector Memory** | `pgvector` | *PLANNED (Future Enhancement)* |
+| **Testing** | `pytest`, `pytest-asyncio` | **IMPLEMENTED (SCAFFOLDING)** |
+| **Containerization** | Docker | *PLANNED* |
 
 ---
 
-## 5. Development Strategy & Roadmap
+## 6. Team Ownership & Git Branch Strategy
 
-### Mid-Sem Implementation Target (15-Day Plan)
-- [x] Day 1–3: Environment setup, repository initialization, shared Pydantic schemas, Gemini integration.
-- [ ] Day 4–6: Meta Controller, Architecture Generator, and Agent Factory core implementation.
-- [ ] Day 7–9: Dynamic LangGraph execution (Pipeline & Parallel) and Tool Assignment.
-- [ ] Day 10–11: Evaluator, Failure Analyzer, and Reflection Engine integration.
-- [ ] Day 12–13: Evolution Memory Store feedback loop integration.
-- [ ] Day 14: Full FastAPI & Streamlit integration, demo flow verification (Run 1 vs. Run 2 architecture self-improvement).
-- [ ] Day 15: Feature freeze, testing, documentation, and Mid-Sem review demonstration.
+Development is distributed across four member modules adhering to a structured multi-branch workflow:
 
-### Post-Mid-Sem Planned Features
-- Complex topologies (Debate, Tree-of-Thought, Blackboard)
-- Advanced evolutionary optimization algorithms for topology mutation
-- Deep vector retrieval via `pgvector` & Knowledge Graphs
-- Multi-LLM provider fallback & distributed execution
-
----
-
-## 6. Repository Workflow & Branch Strategy
-
-The team maintains **one common repository** adhering to structured branch isolation:
-
-- `main`: Protected, production-ready release branch.
-- `common`: Shared integration and development branch for all four members.
-- `member-1`: Meta Controller + Task Analysis + Architecture Generator
-- `member-2`: Agent Factory + Tool Planner + Communication Graph + Execution Engine
-- `member-3`: Evaluator + Failure Analyzer + Reflection Engine + Architecture Improvement
-- `member-4`: Evolution Memory + FastAPI + Streamlit + Integration
-
-### Contribution Workflow
 ```
-Member Branch  ➔  Local Testing  ➔  Commit  ➔  Pull Request  ➔  common  ➔  Integration Testing  ➔  main
+main (Stable Release)
+  │
+  └── common (Shared Integration Branch)
+       │
+       ├── member-1 (Meta Controller + Architecture Generator)
+       ├── member-2 (Agent Runtime + Execution Engine)
+       ├── member-3 (Evaluation + Reflection Engine)
+       └── member-4 (Memory + FastAPI + Next.js Frontend + Integration)
 ```
 
+| Member | Branch | Domain & Subsystem Responsibilities |
+| :--- | :--- | :--- |
+| **Member 1** | `member-1` | Meta Controller, Task Analyzer, Task Decomposer, Complexity Analyzer, Capability Extractor, Architecture Generator |
+| **Member 2** | `member-2` | Agent Factory, Base Agent, Agent Runtime, Tool Planner, Tool Registry, Communication Graph, LangGraph Execution Engine |
+| **Member 3** | `member-3` | Evaluator, Metrics Engine, Quality Scorer, Failure Analyzer, Reflection Engine, Architecture Modifier |
+| **Member 4** | `member-4` | Evolution Memory, Memory Retriever, FastAPI Backend, Next.js Frontend, React Flow Visualization, Integration |
+
 ---
 
-## 7. Current Project Status
+## 7. 15-Day Mid-Sem Development Roadmap
+
+- [x] **Days 1–3**: Repository initialization, shared Pydantic schemas, baseline FastAPI health endpoint, git branch architecture (`main`, `common`, `member-1`..`member-4`).
+- [ ] **Days 4–6**: Meta Controller, Task Decomposition, Architecture Generator, and Agent Factory core implementation.
+- [ ] **Days 7–9**: Dynamic LangGraph execution engine (Pipeline & Parallel topologies) and Tool Planner integration.
+- [ ] **Days 10–11**: Evaluator, Failure Analyzer, and Reflection Engine integration.
+- [ ] **Days 12–13**: Evolution Memory Store persistence & feedback loop integration.
+- [ ] **Day 14**: Next.js dashboard foundation + React Flow architecture visualization integration + End-to-End flow verification.
+- [ ] **Day 15**: Feature freeze, integration testing, documentation, and Mid-Sem review demonstration.
+
+---
+
+## 8. Intended Mid-Sem Demonstration Flow
+
+### Target Demonstration Scenario
+Input Task: *"Research the impact of Generative AI on cybersecurity and produce a verified report."*
+
+#### RUN 1 (Initial Architecture Synthesis)
+- **Synthesized Architecture**: `Research Agent ➔ Analysis Agent ➔ Writer Agent`
+- **Evaluation Score**: `Quality = 68%`
+- **Reflection Engine Output**: `"Deficiency detected: Report lacks factual cross-reference verification step."`
+- **Recommendation**: `"Action: ADD_AGENT | Role: Verification Agent | Position: between Analysis and Writer"`
+
+#### RUN 2 (Reflected / Evolved Architecture)
+- **Evolved Architecture**: `Research Agent ➔ Analysis Agent ➔ Verification Agent ➔ Writer Agent`
+- **Evaluation Score**: `Quality = 86%`
+- **Demonstrated Concept**: Proof of architecture-level self-adaptation and continuous evolution.
+
+---
+
+## 9. Current Project Status
 
 > **Current Phase**: `INITIAL SCAFFOLDING & CORE DEVELOPMENT` (Mid-Sem Review Preparation)
 
-### Status Matrix
-
-| Module / Component | Status | Details |
+| Subsystem / Feature | Status | Implementation Details |
 | :--- | :--- | :--- |
-| **Repository Scaffolding** | **IMPLEMENTED** | Directory layout, `.gitignore`, `.env.example`, `requirements.txt`, setup docs |
-| **Shared Data Schemas** | **IMPLEMENTED** | Pydantic contracts (`TaskSpec`, `ArchitectureSpec`, `EvaluationResult`, `ReflectionResult`) |
-| **API Entry Point** | **IMPLEMENTED** | FastAPI skeleton with health check endpoints |
-| **Meta Controller & Generator** | *PLANNED* | Module structure created; business logic under active development |
-| **Agent Factory & Execution** | *PLANNED* | Module structure created; LangGraph execution under active development |
-| **Evaluator & Reflection** | *PLANNED* | Module structure created; evaluation heuristics under active development |
-| **Evolution Memory & UI** | *PLANNED* | Module structure created; Streamlit UI & memory persistence under development |
+| **Repository Scaffolding** | **IMPLEMENTED** | Folder structure, `.gitignore`, `.env.example`, `requirements.txt`, docs |
+| **Shared Pydantic Schemas** | **IMPLEMENTED** | `TaskSpec`, `ArchitectureSpec`, `EvaluationResult`, `ReflectionResult` |
+| **FastAPI Backend Core** | **IMPLEMENTED** | Scaffolding API server with `/health` route & router modules |
+| **Meta Controller & Generator** | *IN DEVELOPMENT* | Subsystem structure initialized; logic assigned to `member-1` |
+| **Agent Factory & LangGraph Engine**| *IN DEVELOPMENT* | Subsystem structure initialized; logic assigned to `member-2` |
+| **Evaluator & Reflection Engine** | *IN DEVELOPMENT* | Subsystem structure initialized; logic assigned to `member-3` |
+| **Evolution Memory Store** | *IN DEVELOPMENT* | Subsystem structure initialized; logic assigned to `member-4` |
+| **Next.js Frontend & React Flow** | *IN DEVELOPMENT* | Architecture defined; dashboard assigned to `member-4` |
+| **WebSocket Streaming** | *PLANNED* | Real-time agent status streaming |
+| **pgvector Memory Store** | *PLANNED (FUTURE)* | Semantic memory vector search enhancement |
 
 ---
 
-## 8. Quick Start
+## 10. Quick Start & Local Development
 
-### 1. Clone & Set Up Environment
+### 1. Clone & Set Up Backend
 ```bash
 git clone https://github.com/Anuj2862/Agent_Forge.git
 cd Agent_Forge
@@ -165,24 +239,27 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Configure Environment Variables
+### 2. Configure Environment
 ```bash
 cp .env.example .env
-# Edit .env and supply your GEMINI_API_KEY
+# Fill in GEMINI_API_KEY inside .env
 ```
 
 ### 3. Run FastAPI Backend
 ```bash
 uvicorn app.main:app --reload --port 8000
 ```
-Verify health: Navigate to `http://localhost:8000/health` or `http://localhost:8000/docs`.
+Swagger API docs: `http://localhost:8000/docs` | Health check: `http://localhost:8000/health`
 
-### 4. Run Streamlit Dashboard
+### 4. Run Next.js Frontend Dashboard *(In Development on `member-4`)*
 ```bash
-streamlit run frontend/streamlit_app.py
+cd frontend
+npm install
+npm run dev
 ```
+Dashboard URL: `http://localhost:3000`
 
 ---
 
-## 9. License & Academic Context
+## 11. License & Academic Context
 Developed for the Third-Year (TY) **Engineering Design & Innovation (EDI)** project. Designed with future patent potential in mind.
