@@ -1,36 +1,36 @@
-# Agent Forge — Next.js Frontend Dashboard (Owned by Member 4)
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-This directory contains the production web dashboard for **Agent Forge**, constructed with Next.js, React, TypeScript, Tailwind CSS, shadcn/ui, and React Flow.
+## Getting Started
 
----
+First, run the development server:
 
-## Technical Stack & Libraries
-- **Framework**: Next.js (App Router)
-- **UI & Components**: React, TypeScript, Tailwind CSS, shadcn/ui
-- **Graph Visualization**: React Flow (for dynamic agent network topology rendering)
-- **State & Data Fetching**: React Hooks, Axios / Fetch API, WebSockets (planned)
-
----
-
-## Target Project Structure
-```
-frontend/
-├── app/                  # Next.js App Router (pages & layouts)
-│   ├── layout.tsx        # Root layout & theme providers
-│   ├── page.tsx          # Main dashboard entrypoint
-│   └── history/          # Historical architecture & evolution logs page
-├── components/           # UI components
-│   ├── architecture/     # React Flow graph visualization components
-│   ├── execution/        # Live agent execution status & message stream
-│   ├── evaluation/       # Evaluation metrics & quality comparison charts
-│   └── ui/               # shadcn/ui base design components
-├── lib/                  # API client, WebSocket hooks, and state utilities
-├── public/               # Static assets & icons
-├── package.json          # Node.js dependencies
-└── tsconfig.json         # TypeScript configuration
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
 ```
 
----
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-## Status
-> **Current Phase**: `PLANNED / SCAFFOLDING STAGE` (Initialization assigned to Member 4 on branch `member-4`).
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+
+## Learn More
+
+To learn more about Next.js, take a look at the following resources:
+
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+
+## Deploy on Vercel
+
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
