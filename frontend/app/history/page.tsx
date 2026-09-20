@@ -2,38 +2,65 @@ import EvolutionHistoryTable from "@/components/evaluation/EvolutionHistoryTable
 
 export default function HistoryPage() {
   return (
-    <div className="max-w-6xl mx-auto px-4 py-12 slide-up">
-      <div className="mb-10">
-        <h1 className="text-3xl md:text-4xl font-bold mb-4 flex items-center gap-3">
-          <span className="text-accent-secondary">
-            <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20v-6M6 20V10M18 20V4"/></svg>
-          </span>
-          Evolution Memory <span className="text-text-secondary font-light">History</span>
-        </h1>
-        <p className="text-text-secondary max-w-3xl">
-          View the persistent record of all executed architectures, their evaluation metrics, 
-          and the reflection recommendations generated to improve them. This memory store 
-          is used by the Meta Controller to retrieve similar past experiences.
-        </p>
+    <div style={{ maxWidth: 1100, margin: "0 auto", padding: "48px 24px 80px" }}>
+
+      {/* Header */}
+      <div className="fade-up" style={{ marginBottom: 40 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+          <div
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 10,
+              background: "rgba(139,92,246,0.12)",
+              border: "1px solid rgba(139,92,246,0.25)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#c4b5fd",
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 20v-6M6 20V10M18 20V4"/>
+            </svg>
+          </div>
+          <div>
+            <h1 style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em" }}>
+              Evolution Memory <span className="gradient-text">History</span>
+            </h1>
+            <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
+              Persistent record of all executed architectures and their evaluation outcomes
+            </p>
+          </div>
+        </div>
       </div>
 
-      <EvolutionHistoryTable />
-      
-      <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="glass-card p-6 border-accent-primary/20">
-          <h3 className="text-lg font-bold mb-2">Memory Retriever Subsystem</h3>
-          <p className="text-sm text-text-secondary">
-            The retrieval engine searches this database based on task characteristics (type, complexity).
-            When you submit a new task, it automatically retrieves the highest-rated architectures from
-            similar past tasks to inform the new synthesis, avoiding previous mistakes.
+      {/* Table */}
+      <div className="fade-up delay-1">
+        <EvolutionHistoryTable />
+      </div>
+
+      {/* Info cards */}
+      <div
+        className="fade-up delay-2"
+        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 32 }}
+      >
+        <div
+          className="card"
+          style={{ padding: "20px 22px" }}
+        >
+          <h3 style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, color: "#818cf8" }}>Memory Retriever</h3>
+          <p style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.65 }}>
+            On every new task submission, the retrieval engine searches this database by task type and complexity to surface the highest-rated past architectures, preventing the Meta Controller from repeating known mistakes.
           </p>
         </div>
-        <div className="glass-card p-6 border-accent-emerald/20">
-          <h3 className="text-lg font-bold mb-2">Run Iterations</h3>
-          <p className="text-sm text-text-secondary">
-            Clicking <span className="font-semibold text-text-primary">Evolve Architecture</span> on the Run page increments 
-            the Run Number for a task. You can observe the success rating improving over successive iterations as
-            structural recommendations are applied to the generated agent network.
+        <div
+          className="card"
+          style={{ padding: "20px 22px" }}
+        >
+          <h3 style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, color: "#34d399" }}>Run Iterations</h3>
+          <p style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.65 }}>
+            Each time you click <strong style={{ color: "var(--text-primary)" }}>Evolve & Re-Run</strong> on the run page, the system increments the run number and applies reflection recommendations to the newly generated architecture, visibly improving over time.
           </p>
         </div>
       </div>

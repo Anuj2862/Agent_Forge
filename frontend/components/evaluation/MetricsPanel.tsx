@@ -3,69 +3,79 @@
 import { EvaluationMetrics } from "@/lib/api";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
-interface Props {
-  metrics: EvaluationMetrics;
+interface Props { metrics: EvaluationMetrics; }
+
+function scoreColor(v: number) {
+  if (v >= 0.8) return "var(--emerald)";
+  if (v >= 0.6) return "var(--amber)";
+  return "var(--rose)";
 }
 
+const CustomTooltip = ({ active, payload }: any) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 12px", fontSize: 12 }}>
+      <span style={{ color: "var(--text-secondary)" }}>{payload[0].name}: </span>
+      <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>{payload[0].value}%</span>
+    </div>
+  );
+};
+
 export default function MetricsPanel({ metrics }: Props) {
-  const data = [
-    { name: "Task Success", value: Math.round(metrics.task_success * 100), color: metrics.task_success >= 0.8 ? "#10b981" : metrics.task_success >= 0.6 ? "#f59e0b" : "#f43f5e" },
-    { name: "Quality", value: Math.round(metrics.quality * 100), color: metrics.quality >= 0.8 ? "#10b981" : metrics.quality >= 0.6 ? "#f59e0b" : "#f43f5e" },
-    { name: "Completeness", value: Math.round(metrics.completeness * 100), color: metrics.completeness >= 0.8 ? "#10b981" : metrics.completeness >= 0.6 ? "#f59e0b" : "#f43f5e" },
+  const bars = [
+    { name: "Task Success", value: Math.round(metrics.task_success * 100) },
+    { name: "Quality",      value: Math.round(metrics.quality * 100) },
+    { name: "Completeness", value: Math.round(metrics.completeness * 100) },
+  ];
+
+  const stats = [
+    { label: "Exec Time",   value: `${metrics.execution_time_seconds.toFixed(1)}s` },
+    { label: "Agents",      value: `${metrics.agent_count}` },
+    { label: "Tool Calls",  value: `${metrics.tool_call_count}` },
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <div className="glass-card p-5">
-        <h3 className="text-lg font-bold mb-4 border-b border-border pb-2">Quantitative Metrics</h3>
-        <div className="h-[200px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-              <XAxis type="number" domain={[0, 100]} hide />
-              <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 12 }} width={90} />
-              <Tooltip 
-                cursor={{ fill: "rgba(30, 45, 69, 0.5)" }} 
-                contentStyle={{ background: "#131929", border: "1px solid #1e2d45", borderRadius: "8px", color: "#e2e8f0" }}
-                formatter={(value: number) => [`${value}%`, "Score"]}
-              />
-              <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={24}>
-                {data.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* Score bars */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {bars.map(({ name, value }) => {
+          const color = scoreColor(value / 100);
+          return (
+            <div key={name}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{name}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, fontFamily: "monospace", color }}>{value}%</span>
+              </div>
+              <div className="progress-track">
+                <div
+                  className="progress-fill"
+                  style={{ width: `${value}%`, background: color }}
+                />
+              </div>
+            </div>
+          );
+        })}
       </div>
-      
-      <div className="glass-card p-5 flex flex-col gap-4">
-        <h3 className="text-lg font-bold mb-1 border-b border-border pb-2">Resource Utilization</h3>
-        
-        <div className="flex items-center justify-between p-3 bg-bg-secondary rounded-lg border border-border">
-          <div className="flex flex-col">
-            <span className="text-xs text-text-secondary uppercase font-bold tracking-wider">Execution Time</span>
-            <span className="text-2xl font-mono mt-1">{metrics.execution_time_seconds.toFixed(1)}s</span>
+
+      <hr className="divider" />
+
+      {/* Stats row */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+        {stats.map(({ label, value }) => (
+          <div
+            key={label}
+            style={{
+              background: "var(--bg-secondary)",
+              border: "1px solid var(--border-soft)",
+              borderRadius: 8,
+              padding: "12px 14px",
+              textAlign: "center",
+            }}
+          >
+            <div style={{ fontSize: 20, fontWeight: 800, fontFamily: "monospace", color: "var(--text-primary)", marginBottom: 4 }}>{value}</div>
+            <div style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".07em" }}>{label}</div>
           </div>
-          <div className="w-10 h-10 rounded-full bg-accent-cyan/20 flex items-center justify-center border border-accent-cyan/30">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#06b6d4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          </div>
-        </div>
-        
-        <div className="grid grid-cols-2 gap-4">
-          <div className="flex items-center justify-between p-3 bg-bg-secondary rounded-lg border border-border">
-            <div className="flex flex-col">
-              <span className="text-xs text-text-secondary uppercase font-bold tracking-wider">Agents</span>
-              <span className="text-2xl font-mono mt-1">{metrics.agent_count}</span>
-            </div>
-          </div>
-          
-          <div className="flex items-center justify-between p-3 bg-bg-secondary rounded-lg border border-border">
-            <div className="flex flex-col">
-              <span className="text-xs text-text-secondary uppercase font-bold tracking-wider">Tool Calls</span>
-              <span className="text-2xl font-mono mt-1">{metrics.tool_call_count}</span>
-            </div>
-          </div>
-        </div>
+        ))}
       </div>
     </div>
   );
