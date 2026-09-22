@@ -13,7 +13,7 @@ export default function ArchitectureGraph({ architecture }: Props) {
   const { nodes, edges } = useMemo(() => {
     const isParallel = architecture.topology === "parallel";
     
-    const nodes = architecture.agents.map((agent, index) => {
+    const nodes = architecture.agents.map((agent: any, index: number) => {
       // Auto-layout nodes in a line for pipeline, or side-by-side for parallel
       const x = isParallel ? (index % 3) * 250 : index * 250;
       const y = isParallel ? Math.floor(index / 3) * 150 : 50;
@@ -26,9 +26,9 @@ export default function ArchitectureGraph({ architecture }: Props) {
             <div className="flex flex-col gap-1 p-1">
               <div className="font-bold text-sm" style={{ color: "#e2e8f0" }}>{agent.name}</div>
               <div className="text-xs" style={{ color: "#94a3b8" }}>{agent.role}</div>
-              {agent.tools.length > 0 && (
+              {agent.tools && agent.tools.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-1 justify-center">
-                  {agent.tools.map(t => (
+                  {agent.tools.map((t: string) => (
                     <span key={t} className="text-[9px] bg-accent-primary/20 text-accent-primary px-1.5 py-0.5 rounded-full border border-accent-primary/30">
                       {t}
                     </span>
@@ -49,7 +49,7 @@ export default function ArchitectureGraph({ architecture }: Props) {
       };
     });
 
-    const edges = architecture.connections.map((conn, idx) => ({
+    const edges = (architecture.connections || []).map((conn: any, idx: number) => ({
       id: `e-${conn.source}-${conn.target}-${idx}`,
       source: conn.source,
       target: conn.target,

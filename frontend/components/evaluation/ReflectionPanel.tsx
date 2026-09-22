@@ -35,7 +35,7 @@ export default function ReflectionPanel({ reflection }: Props) {
             <p style={{ fontSize: 12, color: "var(--text-muted)", textAlign: "center", padding: "14px 0" }}>None detected ✓</p>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {reflection.identified_issues.map((issue, i) => (
+              {reflection.identified_issues.map((issue: any, i: number) => (
                 <div
                   key={i}
                   style={{
@@ -46,7 +46,7 @@ export default function ReflectionPanel({ reflection }: Props) {
                   }}
                 >
                   <div style={{ fontSize: 10, fontWeight: 700, color: "#fb7185", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 4 }}>
-                    {issue.category.replace(/_/g, " ")}
+                    {issue.category ? issue.category.replace(/_/g, " ") : "Issue"}
                   </div>
                   <p style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.55 }}>{issue.description}</p>
                 </div>
@@ -66,7 +66,7 @@ export default function ReflectionPanel({ reflection }: Props) {
             <p style={{ fontSize: 12, color: "var(--text-muted)", textAlign: "center", padding: "14px 0" }}>None needed</p>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {reflection.recommendations.map((rec, i) => (
+              {reflection.recommendations.map((rec: any, i: number) => (
                 <div
                   key={i}
                   style={{

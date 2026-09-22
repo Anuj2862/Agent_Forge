@@ -106,9 +106,9 @@ export default function ExecutionTimeline({ logs }: Props) {
               </p>
 
               {/* Tool calls */}
-              {log.tool_calls.length > 0 && (
+              {log.tool_calls && log.tool_calls.length > 0 && (
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 10 }}>
-                  {log.tool_calls.map((tc, ti) => (
+                  {log.tool_calls.map((tc: any, ti: number) => (
                     <span
                       key={ti}
                       style={{

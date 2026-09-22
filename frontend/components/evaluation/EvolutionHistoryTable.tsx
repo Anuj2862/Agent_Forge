@@ -84,7 +84,7 @@ export default function EvolutionHistoryTable() {
                       {rec.task_type.replace(/_/g, " ")}
                     </div>
                     <div style={{ fontSize: 10, fontFamily: "monospace", color: "var(--text-muted)" }}>
-                      {rec.task_spec.task_id.slice(0, 12)}…
+                      {(rec.task_spec?.task_id || rec.task_id).slice(0, 12)}…
                     </div>
                   </td>
                   <td style={{ padding: "14px 16px" }}>
@@ -140,7 +140,7 @@ export default function EvolutionHistoryTable() {
                   </td>
                   <td style={{ padding: "14px 16px", textAlign: "right" }}>
                     <Link
-                      href={`/run/${rec.task_spec.task_id}`}
+                      href={`/run/${rec.task_spec?.task_id || rec.task_id}`}
                       style={{
                         fontSize: 12,
                         fontWeight: 600,
