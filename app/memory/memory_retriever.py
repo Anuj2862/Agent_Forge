@@ -82,17 +82,19 @@ class MemoryRetriever:
             if r.record_id not in seen_ids:
                 combined.append(r)
                 seen_ids.add(r.record_id)
-        if len(combined) >= limit:
-            return combined[:limit]
 
-        # --- Tier 3: any record, best rated ---
-        fallback_rows = await self._query_records(task_type=None, complexity=None, limit=limit)
-        for r in fallback_rows:
-            if r.record_id not in seen_ids:
-                combined.append(r)
-                seen_ids.add(r.record_id)
+        if len(combined) < limit:
+            # --- Tier 3: any record, best rated ---
+            fallback_rows = await self._query_records(task_type=None, complexity=None, limit=limit)
+            for r in fallback_rows:
+                if r.record_id not in seen_ids:
+                    combined.append(r)
+                    seen_ids.add(r.record_id)
 
+        # Sort by success_rating descending to ensure highest rated experiences appear first
+        combined.sort(key=lambda r: r.success_rating, reverse=True)
         return combined[:limit]
+
 
     async def get_best_architecture_for_task(
         self, task_type: TaskType, complexity: ComplexityLevel
