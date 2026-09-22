@@ -138,19 +138,11 @@ async def test_full_agent_forge_integrated_loop():
     # -------------------------------------------------------------------------
     modifier = ArchitectureModifier()
     
-    # If no recommendations naturally triggered, add a Verifier recommendation to prove evolution
-    if not reflection_run1.recommendations:
-        from app.schemas.reflection import ArchitecturalRecommendation
-        reflection_run1.recommendations.append(
-            ArchitecturalRecommendation(
-                action="ADD_AGENT",
-                target_agent_id="verifier_agent",
-                role="Verification Specialist",
-                capabilities=["fact_checking"],
-                tools=["web_search"],
-                reason="Improve reliability and verify empirical projections.",
-            )
-        )
+    # Assert that recommendations were triggered naturally by failure analysis & reflection
+    assert len(reflection_run1.recommendations) >= 1, (
+        f"ReflectionEngine must autonomously generate recommendations. "
+        f"Issues diagnosed: {[i.category.value for i in reflection_run1.identified_issues]}"
+    )
 
     arch_run2 = modifier.apply_recommendations(
         architecture=arch_run1,
@@ -158,7 +150,7 @@ async def test_full_agent_forge_integrated_loop():
     )
 
     assert isinstance(arch_run2, ArchitectureSpec)
-    assert len(arch_run2.agents) >= len(arch_run1.agents)
+    assert len(arch_run2.agents) > len(arch_run1.agents)
 
     # -------------------------------------------------------------------------
     # STEP 6: MEMBER 2 — RE-EXECUTE EVOLVED ARCHITECTURE (RUN 2)

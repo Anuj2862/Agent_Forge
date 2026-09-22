@@ -76,6 +76,18 @@ async def evolve_architecture(request: EvolveArchitectureRequest):
 
     reflection_result = ReflectionResult.model_validate(eval_entry["reflection_result"])
 
+    # Check if recommendations were generated
+    if not reflection_result.recommendations:
+        return EvolveArchitectureResponse(
+            task_id=request.task_id,
+            base_architecture_id=base_architecture.architecture_id,
+            evolved_architecture_id=base_architecture.architecture_id,
+            evolved_architecture=base_architecture,
+            run_number=task.get("run_number", 1),
+            modifications_applied=[],
+            message="No architectural mutation recommended for this run.",
+        )
+
     # Invoke Member 3 ArchitectureModifier
     modifier = ArchitectureModifier()
     evolved_architecture = modifier.mutate_architecture(base_architecture, reflection_result)
@@ -94,8 +106,6 @@ async def evolve_architecture(request: EvolveArchitectureRequest):
         f"{r.action}: {r.reason or r.details.get('role', '')}"
         for r in reflection_result.recommendations
     ]
-    if not modifications:
-        modifications = ["Added specialized verification and synthesis stage to enhance accuracy."]
 
     return EvolveArchitectureResponse(
         task_id=request.task_id,

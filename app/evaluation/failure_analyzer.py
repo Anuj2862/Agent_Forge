@@ -25,6 +25,9 @@ class FailureAnalyzer:
         """
         Main diagnostic entrypoint. Analyzes architecture and execution data to produce structured issues.
         """
+        if isinstance(execution_result, dict):
+            execution_result = ExecutionResult.model_validate(execution_result)
+
         logger.info(f"[FAILURE] Analyzing root causes for architecture={architecture.architecture_id}")
         issues: List[ReflectionIssue] = []
 
@@ -86,10 +89,10 @@ class FailureAnalyzer:
         evaluation_result: EvaluationResult,
     ) -> Optional[ReflectionIssue]:
         """Detects absence of independent verification stage when factual accuracy is needed."""
-        # Check if architecture contains any verification agent
+        # Check if architecture contains any verification agent by role or name
         verifier_agents = [
             a for a in architecture.agents
-            if any(term in (a.role + " " + a.name + " " + a.objective).lower() for term in ["verif", "validator", "fact", "critic"])
+            if any(term in (a.role + " " + a.name).lower() for term in ["verif", "validator", "fact_check", "fact check", "critic"])
         ]
 
         # Criteria for needing verification:

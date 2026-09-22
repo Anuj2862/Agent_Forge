@@ -10,6 +10,7 @@ from app.controller.complexity_analyzer import ComplexityAnalyzer
 from app.controller.task_analyzer import TaskAnalyzer
 from app.controller.task_decomposer import TaskDecomposer
 from app.schemas.architecture import ArchitectureSpec
+from app.schemas.task import TaskSpec
 
 
 class MetaController:
@@ -25,18 +26,19 @@ class MetaController:
         self.complexity_analyzer = ComplexityAnalyzer()
         self.architecture_generator = ArchitectureGenerator()
 
-    async def process_task(self, user_prompt: str) -> ArchitectureSpec:
+    async def process_task_with_spec(
+        self, user_prompt: str
+    ) -> tuple[TaskSpec, ArchitectureSpec]:
         """
-        Process a natural-language task and generate an ArchitectureSpec.
+        Process a natural-language task and return both TaskSpec and synthesized ArchitectureSpec.
 
         Pipeline:
-        1. Analyze the task.
-        2. Decompose the task into subtasks.
+        1. Analyze the task -> TaskSpec.
+        2. Decompose the task into structured subtasks.
         3. Extract required capabilities.
         4. Assess task complexity.
-        5. Generate the final architecture.
+        5. Generate the final ArchitectureSpec.
         """
-
         if not user_prompt or not user_prompt.strip():
             raise ValueError("user_prompt cannot be empty.")
 
@@ -61,4 +63,12 @@ class MetaController:
             task_spec
         )
 
+        return task_spec, architecture
+
+    async def process_task(self, user_prompt: str) -> ArchitectureSpec:
+        """
+        Process a natural-language task and generate an ArchitectureSpec.
+        Maintains backward compatibility with callers expecting only ArchitectureSpec.
+        """
+        _, architecture = await self.process_task_with_spec(user_prompt)
         return architecture

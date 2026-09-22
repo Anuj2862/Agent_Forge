@@ -613,40 +613,59 @@ export default function RunPage({ params }: { params?: any }) {
 
                 {/* Evolve CTA in Run 1 */}
                 {activeTab === "run_1" && !archV2 && (
-                  <div
-                    className="card fade-up"
-                    style={{
-                      padding: "24px",
-                      textAlign: "center",
-                      background: "linear-gradient(135deg, rgba(99,102,241,0.06) 0%, rgba(139,92,246,0.06) 100%)",
-                      borderColor: "rgba(99,102,241,0.25)",
-                    }}
-                  >
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "#818cf8", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 6 }}>
-                      Architectural Self-Evolution
-                    </div>
-                    <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>
-                      Apply Recommendations &amp; Mutate Architecture
-                    </h3>
-                    <p style={{ fontSize: 13, color: "var(--text-secondary)", maxWidth: 500, margin: "0 auto 20px" }}>
-                      Member 3's ArchitectureModifier will programmatically evolve the architecture graph by adding recommended specialist agents and rewiring connections.
-                    </p>
-                    <button
-                      onClick={handleApplyRecommendationAndEvolve}
-                      disabled={isEvolving}
-                      className="btn btn-primary"
-                      style={{ padding: "10px 24px" }}
+                  evalData.reflection_result.recommendations.length > 0 ? (
+                    <div
+                      className="card fade-up"
+                      style={{
+                        padding: "24px",
+                        textAlign: "center",
+                        background: "linear-gradient(135deg, rgba(99,102,241,0.06) 0%, rgba(139,92,246,0.06) 100%)",
+                        borderColor: "rgba(99,102,241,0.25)",
+                      }}
                     >
-                      {isEvolving ? (
-                        <><span className="spinner" style={{ width: 16, height: 16 }} />Mutating Architecture…</>
-                      ) : (
-                        <>
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M2 12A10 10 0 0 0 15 21.5M2 12A10 10 0 0 1 15 2.5"/><path d="M15 2.5V8h5.5M15 21.5V16h5.5"/></svg>
-                          Apply Recommendation &amp; Evolve Graph →
-                        </>
-                      )}
-                    </button>
-                  </div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "#818cf8", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 6 }}>
+                        Architectural Self-Evolution
+                      </div>
+                      <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>
+                        Apply Recommendations &amp; Mutate Architecture
+                      </h3>
+                      <p style={{ fontSize: 13, color: "var(--text-secondary)", maxWidth: 500, margin: "0 auto 20px" }}>
+                        Member 3&apos;s ArchitectureModifier will programmatically evolve the architecture graph by adding recommended specialist agents and rewiring connections.
+                      </p>
+                      <button
+                        onClick={handleApplyRecommendationAndEvolve}
+                        disabled={isEvolving}
+                        className="btn btn-primary"
+                        style={{ padding: "10px 24px" }}
+                      >
+                        {isEvolving ? (
+                          <><span className="spinner" style={{ width: 16, height: 16 }} />Mutating Architecture…</>
+                        ) : (
+                          <>
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M2 12A10 10 0 0 0 15 21.5M2 12A10 10 0 0 1 15 2.5"/><path d="M15 2.5V8h5.5M15 21.5V16h5.5"/></svg>
+                            Apply Recommendation &amp; Evolve Graph →
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      className="card fade-up"
+                      style={{
+                        padding: "20px",
+                        textAlign: "center",
+                        background: "rgba(16, 185, 129, 0.05)",
+                        borderColor: "rgba(16, 185, 129, 0.2)",
+                      }}
+                    >
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "#10b981", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 4 }}>
+                        Optimal Architecture
+                      </div>
+                      <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: 0 }}>
+                        No architectural mutation recommended for this run. The current architecture met all evaluation criteria.
+                      </p>
+                    </div>
+                  )
                 )}
               </>
             )}

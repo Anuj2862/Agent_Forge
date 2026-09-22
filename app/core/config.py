@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8000
+    AGENT_FORGE_MODE: str = "real"  # "real" (default) or "simulation"
+    DEMO_MODE: bool = False
 
     # Gemini Configuration
     GEMINI_API_KEY: Optional[str] = None

@@ -20,6 +20,8 @@ from app.api.execution_routes import _execution_store
 from app.memory.database import get_db_session
 from app.memory.memory_store import MemoryStore
 from app.memory.memory_schema import EvolutionMemoryRecord
+from app.core.config import settings
+from app.core.logging import logger
 
 router = APIRouter(prefix="/evaluation", tags=["Evaluation & Reflection"])
 
@@ -56,30 +58,30 @@ async def evaluate_execution(
         raise HTTPException(status_code=404, detail=f"Task '{request.task_id}' not found.")
 
     task_spec = TaskSpec.model_validate(task_data["task_spec"])
-    architecture_spec = ArchitectureSpec.model_validate(task_data["architecture_spec"])
     run_number = execution_data.get("run_number", 1)
 
+    # Resolve the exact architecture that was executed
+    arch_id = execution_data.get("architecture_id")
+    arch_dict = None
+    if arch_id:
+        if task_data.get("architecture_versions", {}).get("v2", {}).get("architecture_id") == arch_id:
+            arch_dict = task_data["architecture_versions"]["v2"]
+        elif task_data.get("architecture_versions", {}).get("v1", {}).get("architecture_id") == arch_id:
+            arch_dict = task_data["architecture_versions"]["v1"]
+    if not arch_dict:
+        if run_number >= 2 and task_data.get("architecture_versions", {}).get("v2"):
+            arch_dict = task_data["architecture_versions"]["v2"]
+        else:
+            arch_dict = task_data.get("architecture_spec")
+
+    if not arch_dict:
+        raise HTTPException(status_code=404, detail="No valid architecture found for evaluation.")
+
+    architecture_spec = ArchitectureSpec.model_validate(arch_dict)
+
     # --- Evaluate & Reflect ---
-    try:
-        from app.evaluation.evaluator import Evaluator
-        from app.evaluation.failure_analyzer import FailureAnalyzer
-        from app.reflection.reflection_engine import ReflectionEngine
-
-        real_evaluator = Evaluator()
-        evaluation_result = real_evaluator.evaluate(
-            task=task_spec,
-            architecture=architecture_spec,
-            execution=execution_data,
-        )
-
-        real_reflection_engine = ReflectionEngine(failure_analyzer=FailureAnalyzer())
-        reflection_result = real_reflection_engine.reflect(
-            evaluation_result=evaluation_result,
-            architecture=architecture_spec,
-            task=task_spec,
-            execution=execution_data,
-        )
-    except Exception as e:
+    mode = getattr(settings, "AGENT_FORGE_MODE", "real").lower()
+    if mode == "simulation":
         evaluator = SimulatedEvaluator()
         evaluation_result = evaluator.evaluate(
             task_id=request.task_id,
@@ -88,6 +90,39 @@ async def evaluate_execution(
         )
         reflector = SimulatedReflectionEngine()
         reflection_result = reflector.reflect(evaluation_result)
+    else:
+        try:
+            from app.evaluation.evaluator import Evaluator
+            from app.evaluation.failure_analyzer import FailureAnalyzer
+            from app.reflection.reflection_engine import ReflectionEngine
+            from app.schemas.execution import ExecutionResult
+
+            exec_model = (
+                execution_data
+                if isinstance(execution_data, ExecutionResult)
+                else ExecutionResult.model_validate(execution_data)
+            )
+
+            real_evaluator = Evaluator()
+            evaluation_result = real_evaluator.evaluate(
+                task=task_spec,
+                architecture=architecture_spec,
+                execution=exec_model,
+            )
+
+            real_reflection_engine = ReflectionEngine(failure_analyzer=FailureAnalyzer())
+            reflection_result = real_reflection_engine.reflect(
+                evaluation_result=evaluation_result,
+                architecture=architecture_spec,
+                task=task_spec,
+                execution=exec_model,
+            )
+        except Exception as e:
+            logger.error(f"[EVALUATION_ERROR] Real evaluation/reflection pipeline failed: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail=f"Real evaluation/reflection engine encountered an error: {str(e)}",
+            )
 
     # --- Compose success rating ---
     m = evaluation_result.metrics

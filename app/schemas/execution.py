@@ -13,6 +13,7 @@ class ExecutionStatus(str, Enum):
     PENDING = "pending"
     RUNNING = "running"
     SUCCESS = "success"
+    COMPLETED = "completed"
     FAILED = "failed"
     PARTIAL = "partial"
     MAX_ITERATIONS_REACHED = "max_iterations_reached"
