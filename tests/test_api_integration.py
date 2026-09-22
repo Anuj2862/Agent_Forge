@@ -207,3 +207,78 @@ async def test_task_type_detection():
 
     ts3, _ = await controller.process_task("Analyze sales data trends and correlations")
     assert ts3.task_type == TaskType.DATA_ANALYSIS
+
+
+@pytest.mark.asyncio
+async def test_evolve_and_compare_lifecycle(client):
+    """
+    Test the multi-run evolution cycle:
+    submit -> execute run 1 -> evaluate run 1 -> evolve to v2 ->
+    execute run 2 -> evaluate run 2 -> compare runs
+    """
+    # Step 1: Submit
+    sub_resp = await client.post("/tasks/submit", json={
+        "user_prompt": "Research the impact of electric vehicle adoption in India and produce a concise evidence-backed summary."
+    })
+    assert sub_resp.status_code == 200
+    task_id = sub_resp.json()["task_id"]
+
+    # Step 2: Run 1
+    exec1_resp = await client.post("/execution/run", json={"task_id": task_id, "run_number": 1})
+    assert exec1_resp.status_code == 200
+    exec1_data = exec1_resp.json()
+
+    # Step 3: Eval 1
+    eval1_resp = await client.post("/evaluation/evaluate", json={
+        "execution_id": exec1_data["execution_id"],
+        "task_id": task_id,
+        "run_number": 1,
+    })
+    assert eval1_resp.status_code == 200
+
+    # Step 4: Evolve Architecture
+    evolve_resp = await client.post("/architectures/evolve", json={"task_id": task_id})
+    assert evolve_resp.status_code == 200
+    evolve_data = evolve_resp.json()
+    assert evolve_data["run_number"] == 2
+    assert evolve_data["evolved_architecture"]["architecture_id"].endswith("_v2")
+    assert len(evolve_data["modifications_applied"]) >= 1
+
+    # Step 5: Check Architecture Versions
+    ver_resp = await client.get(f"/architectures/task/{task_id}/versions")
+    assert ver_resp.status_code == 200
+    ver_data = ver_resp.json()
+    assert "v1" in ver_data["versions"]
+    assert "v2" in ver_data["versions"]
+    assert ver_data["current_version"] == "v2"
+
+    # Step 6: Run 2
+    exec2_resp = await client.post("/execution/run", json={
+        "task_id": task_id,
+        "run_number": 2,
+        "architecture_id": evolve_data["evolved_architecture_id"],
+    })
+    assert exec2_resp.status_code == 200
+    exec2_data = exec2_resp.json()
+    assert exec2_data["status"] == "completed"
+
+    # Step 7: Eval 2
+    eval2_resp = await client.post("/evaluation/evaluate", json={
+        "execution_id": exec2_data["execution_id"],
+        "task_id": task_id,
+        "run_number": 2,
+    })
+    assert eval2_resp.status_code == 200
+
+    # Step 8: Compare Runs
+    comp_resp = await client.get(f"/evaluation/compare/{task_id}")
+    assert comp_resp.status_code == 200
+    comp_data = comp_resp.json()
+    assert comp_data["task_id"] == task_id
+    assert comp_data["has_comparison"] is True
+    assert comp_data["run_1"] is not None
+    assert comp_data["run_2"] is not None
+    assert "deltas" in comp_data
+    assert comp_data["deltas"]["accuracy"] >= 0 or comp_data["deltas"]["accuracy"] < 1
+    assert "architecture_diff" in comp_data
+    assert len(comp_data["architecture_diff"]["added_agents"]) >= 1

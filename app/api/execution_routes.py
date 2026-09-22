@@ -22,6 +22,8 @@ _execution_store: dict[str, dict] = {}
 class ExecutionRunRequest(BaseModel):
     task_id: str
     run_number: Optional[int] = 1
+    architecture_id: Optional[str] = None
+    use_real_engine: Optional[bool] = False
 
 
 @router.post("/run", summary="Execute agent architecture for a task")
@@ -30,6 +32,7 @@ async def run_execution(request: ExecutionRunRequest):
     Execute the synthesized architecture for a given task_id.
     
     Runs the multi-agent pipeline and returns agent logs, timing, and final output.
+    Supports executing evolved v2 architectures on subsequent runs.
     """
     task_data = _task_store.get(request.task_id)
     if not task_data:
@@ -39,21 +42,49 @@ async def run_execution(request: ExecutionRunRequest):
         )
 
     task_spec = TaskSpec.model_validate(task_data["task_spec"])
-    architecture_spec = ArchitectureSpec.model_validate(task_data["architecture_spec"])
+    target_run = request.run_number or task_data.get("run_number", 1)
+
+    # Resolve architecture spec (v2 if run_number == 2, or by architecture_id)
+    arch_dict = None
+    if request.architecture_id:
+        if task_data.get("architecture_spec", {}).get("architecture_id") == request.architecture_id:
+            arch_dict = task_data["architecture_spec"]
+        elif task_data.get("architecture_versions", {}).get("v2", {}).get("architecture_id") == request.architecture_id:
+            arch_dict = task_data["architecture_versions"]["v2"]
+        elif task_data.get("architecture_versions", {}).get("v1", {}).get("architecture_id") == request.architecture_id:
+            arch_dict = task_data["architecture_versions"]["v1"]
+    if not arch_dict:
+        if target_run >= 2 and task_data.get("architecture_versions", {}).get("v2"):
+            arch_dict = task_data["architecture_versions"]["v2"]
+        else:
+            arch_dict = task_data.get("architecture_spec")
+
+    if not arch_dict:
+        raise HTTPException(status_code=404, detail="No valid architecture found to execute.")
+
+    architecture_spec = ArchitectureSpec.model_validate(arch_dict)
 
     engine = SimulatedExecutionEngine()
     execution_result = await engine.execute_architecture(
         architecture=architecture_spec,
         task_spec=task_spec,
-        run_number=request.run_number or task_data.get("run_number", 1),
+        run_number=target_run,
     )
+
+    # Ensure run_number and architecture_id are explicitly recorded
+    execution_result["run_number"] = target_run
+    execution_result["architecture_id"] = architecture_spec.architecture_id
 
     # Cache result for polling
     _execution_store[execution_result["execution_id"]] = execution_result
 
     # Update task state
-    _task_store[request.task_id]["status"] = "execution_completed"
-    _task_store[request.task_id]["latest_execution_id"] = execution_result["execution_id"]
+    task_data["status"] = "execution_completed"
+    task_data["latest_execution_id"] = execution_result["execution_id"]
+    task_data["run_number"] = target_run
+    if "executions" not in task_data:
+        task_data["executions"] = {}
+    task_data["executions"][f"run_{target_run}"] = execution_result
 
     return execution_result
 

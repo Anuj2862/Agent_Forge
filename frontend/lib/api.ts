@@ -160,3 +160,75 @@ export async function getMemoryHistory(
   });
   return response.data;
 }
+
+export interface EvolveArchitectureResponse {
+  task_id: string;
+  base_architecture_id: string;
+  evolved_architecture_id: string;
+  evolved_architecture: ArchitectureSpec;
+  run_number: number;
+  modifications_applied: string[];
+  message: string;
+}
+
+export interface MetricDeltas {
+  task_success: number;
+  quality: number;
+  accuracy: number;
+  completeness: number;
+  duration_seconds: number;
+  agent_count: number;
+  overall_score: number;
+}
+
+export interface ArchitectureDiff {
+  added_agents: AgentConfig[];
+  removed_agents: AgentConfig[];
+  added_connections: { source: string; target: string }[];
+  removed_connections: { source: string; target: string }[];
+  topology_changed: boolean;
+  initial_topology: string;
+  evolved_topology: string;
+}
+
+export interface TaskComparisonResponse {
+  task_id: string;
+  has_comparison: boolean;
+  run_1: {
+    evaluation: any;
+    architecture: ArchitectureSpec;
+  } | null;
+  run_2: {
+    evaluation: any;
+    architecture: ArchitectureSpec;
+  } | null;
+  deltas: MetricDeltas | null;
+  architecture_diff: ArchitectureDiff | null;
+}
+
+export async function evolveArchitecture(
+  task_id: string,
+  architecture_id?: string,
+  reflection_id?: string
+): Promise<EvolveArchitectureResponse> {
+  const response = await api.post<EvolveArchitectureResponse>("/architectures/evolve", {
+    task_id,
+    architecture_id,
+    reflection_id,
+  });
+  return response.data;
+}
+
+export async function compareTaskRuns(
+  task_id: string
+): Promise<TaskComparisonResponse> {
+  const response = await api.get<TaskComparisonResponse>(`/evaluation/compare/${task_id}`);
+  return response.data;
+}
+
+export async function getArchitectureVersions(
+  task_id: string
+): Promise<{ task_id: string; current_version: string; versions: Record<string, ArchitectureSpec> }> {
+  const response = await api.get(`/architectures/task/${task_id}/versions`);
+  return response.data;
+}

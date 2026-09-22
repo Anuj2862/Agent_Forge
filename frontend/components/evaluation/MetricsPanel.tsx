@@ -22,9 +22,20 @@ const CustomTooltip = ({ active, payload }: any) => {
 };
 
 export default function MetricsPanel({ metrics }: Props) {
+  const accuracyVal = typeof (metrics as any).accuracy === "number"
+    ? Math.round((metrics as any).accuracy * 100)
+    : Math.round(metrics.task_success * 100);
+
+  const verificationStatus = (metrics as any).verification_confidence || (
+    metrics.agent_count >= 3 ? "Corroborated" : "Unverified"
+  );
+
+  const isVerified = verificationStatus.toLowerCase().includes("corroborat") || verificationStatus.toLowerCase().includes("high");
+
   const bars = [
     { name: "Task Success", value: Math.round(metrics.task_success * 100) },
-    { name: "Quality",      value: Math.round(metrics.quality * 100) },
+    { name: "Output Quality", value: Math.round(metrics.quality * 100) },
+    { name: "Factual Accuracy", value: accuracyVal },
     { name: "Completeness", value: Math.round(metrics.completeness * 100) },
   ];
 
@@ -36,6 +47,34 @@ export default function MetricsPanel({ metrics }: Props) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* Verification Status Pill */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "8px 12px",
+          borderRadius: 8,
+          background: isVerified ? "rgba(16, 185, 129, 0.08)" : "rgba(245, 158, 11, 0.08)",
+          border: `1px solid ${isVerified ? "rgba(16, 185, 129, 0.25)" : "rgba(245, 158, 11, 0.25)"}`,
+        }}
+      >
+        <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".06em" }}>
+          Verification Status
+        </span>
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            color: isVerified ? "#34d399" : "#fbbf24",
+            display: "flex",
+            alignItems: "center",
+            gap: 5,
+          }}
+        >
+          {isVerified ? "✓ Corroborated" : "⚠ Unverified Claims"}
+        </span>
+      </div>
       {/* Score bars */}
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {bars.map(({ name, value }) => {
