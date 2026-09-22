@@ -1,0 +1,259 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import "tailwindcss";
+
+/* ── Google Font loaded above via @import ────────────────────────── */
+
+/* ── Design Tokens ───────────────────────────────────────────────── */
+:root {
+  --bg-deep:      #070b14;
+  --bg-primary:   #0a0e1a;
+  --bg-secondary: #0d1220;
+  --bg-card:      #111827;
+  --bg-card-2:    #141d2e;
+  --border:       #1e2d45;
+  --border-soft:  #172035;
+
+  --indigo:  #6366f1;
+  --violet:  #8b5cf6;
+  --cyan:    #06b6d4;
+  --emerald: #10b981;
+  --amber:   #f59e0b;
+  --rose:    #f43f5e;
+
+  --text-primary:   #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted:     #475569;
+}
+
+/* ── Reset ───────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  font-family: 'Inter', system-ui, sans-serif;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Scrollbar ───────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(99,102,241,.5); }
+
+/* ── Background mesh / glow ─────────────────────────────────────── */
+.bg-mesh {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 80% 50% at 20% -10%, rgba(99,102,241,.12) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 110%,  rgba(6,182,212,.08)  0%, transparent 60%);
+}
+
+/* ── Card / surface ──────────────────────────────────────────────── */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  transition: border-color .2s, box-shadow .2s;
+}
+.card:hover {
+  border-color: rgba(99,102,241,.25);
+  box-shadow: 0 0 28px rgba(99,102,241,.06);
+}
+
+/* glass variant */
+.card-glass {
+  background: rgba(13,18,32,.72);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(30,45,69,.8);
+  border-radius: 14px;
+  transition: border-color .2s, box-shadow .2s;
+}
+.card-glass:hover {
+  border-color: rgba(99,102,241,.3);
+  box-shadow: 0 0 30px rgba(99,102,241,.08);
+}
+
+/* ── Typography helpers ──────────────────────────────────────────── */
+.gradient-text {
+  background: linear-gradient(135deg, #818cf8 0%, #a78bfa 40%, #38bdf8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.section-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* ── Dividers ────────────────────────────────────────────────────── */
+.divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border), transparent);
+  border: none;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 22px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .18s;
+  border: none;
+}
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--indigo), var(--violet));
+  color: #fff;
+  box-shadow: 0 4px 18px rgba(99,102,241,.3);
+}
+.btn-primary:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px rgba(99,102,241,.45);
+}
+
+.btn-emerald {
+  background: var(--emerald);
+  color: #07140e;
+  font-weight: 700;
+  box-shadow: 0 4px 18px rgba(16,185,129,.25);
+}
+.btn-emerald:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 22px rgba(16,185,129,.4);
+}
+
+.btn-ghost {
+  background: rgba(30,45,69,.6);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+.btn-ghost:not(:disabled):hover {
+  background: rgba(30,45,69,1);
+  color: var(--text-primary);
+}
+
+/* ── Badges ──────────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 99px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.badge-indigo  { background: rgba(99,102,241,.12); color: #818cf8; border: 1px solid rgba(99,102,241,.25); }
+.badge-cyan    { background: rgba(6,182,212,.12);  color: #38bdf8; border: 1px solid rgba(6,182,212,.25); }
+.badge-emerald { background: rgba(16,185,129,.12); color: #34d399; border: 1px solid rgba(16,185,129,.25); }
+.badge-amber   { background: rgba(245,158,11,.12); color: #fbbf24; border: 1px solid rgba(245,158,11,.25); }
+.badge-rose    { background: rgba(244,63,94,.12);  color: #fb7185; border: 1px solid rgba(244,63,94,.25); }
+.badge-violet  { background: rgba(139,92,246,.12); color: #c4b5fd; border: 1px solid rgba(139,92,246,.25); }
+
+/* ── Status dot ──────────────────────────────────────────────────── */
+.status-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+}
+.status-dot.live    { background: var(--emerald); box-shadow: 0 0 6px var(--emerald); }
+.status-dot.pending { background: var(--amber);   box-shadow: 0 0 6px var(--amber); }
+.status-dot.idle    { background: var(--text-muted); }
+
+/* ── Progress ────────────────────────────────────────────────────── */
+.progress-track { height: 5px; border-radius: 99px; background: var(--bg-secondary); overflow: hidden; }
+.progress-fill  { height: 100%; border-radius: 99px; transition: width .6s ease; }
+.progress-fill.indigo  { background: linear-gradient(90deg, var(--indigo), var(--violet)); }
+.progress-fill.emerald { background: var(--emerald); }
+.progress-fill.amber   { background: var(--amber); }
+.progress-fill.rose    { background: var(--rose); }
+
+/* ── Spinner ─────────────────────────────────────────────────────── */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner {
+  display: inline-block;
+  width: 18px; height: 18px;
+  border: 2px solid rgba(99,102,241,.25);
+  border-top-color: var(--indigo);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+  flex-shrink: 0;
+}
+
+/* ── Animations ──────────────────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-up           { animation: fadeUp .45s ease both; }
+.fade-up.delay-1   { animation-delay: .1s; }
+.fade-up.delay-2   { animation-delay: .2s; }
+.fade-up.delay-3   { animation-delay: .3s; }
+
+@keyframes pulseGlow {
+  0%,100% { box-shadow: 0 0 0 rgba(16,185,129,.5); }
+  50%     { box-shadow: 0 0 10px rgba(16,185,129,.7); }
+}
+.pulse-glow { animation: pulseGlow 2s ease-in-out infinite; }
+
+/* ── Input / Textarea ────────────────────────────────────────────── */
+.input-field {
+  width: 100%;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 16px;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 14px;
+  transition: border-color .2s, box-shadow .2s;
+  resize: vertical;
+}
+.input-field::placeholder { color: var(--text-muted); }
+.input-field:focus {
+  outline: none;
+  border-color: rgba(99,102,241,.6);
+  box-shadow: 0 0 0 3px rgba(99,102,241,.1);
+}
+.input-field:disabled { opacity: .5; }
+
+/* ── React Flow overrides ────────────────────────────────────────── */
+.react-flow__background { background-color: var(--bg-secondary) !important; }
+.react-flow__edge-path  { stroke: var(--indigo) !important; stroke-width: 2 !important; }
+.react-flow__controls {
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 10px !important;
+  box-shadow: none !important;
+}
+.react-flow__controls-button {
+  background: var(--bg-card) !important;
+  border-color: var(--border) !important;
+  color: var(--text-secondary) !important;
+}
+.react-flow__controls-button:hover { background: var(--bg-card-2) !important; }
+.react-flow__minimap {
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 10px !important;
+}
