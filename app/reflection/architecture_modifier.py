@@ -15,6 +15,23 @@ from app.core.logging import logger
 class ArchitectureModifier:
     """Applies recommendations to mutate an ArchitectureSpec directly with rigorous validation."""
 
+    def apply_recommendations(
+        self,
+        architecture: ArchitectureSpec,
+        recommendations: List[ArchitecturalRecommendation],
+    ) -> ArchitectureSpec:
+        """
+        Convenience method to apply a list of recommendations directly.
+        """
+        dummy_reflection = ReflectionResult(
+            reflection_id=f"refl_{uuid.uuid4().hex[:6]}",
+            task_id=architecture.task_id,
+            architecture_id=architecture.architecture_id,
+            reflection_summary="Applied architectural recommendations.",
+            recommendations=recommendations,
+        )
+        return self.mutate_architecture(architecture, dummy_reflection)
+
     def mutate_architecture(
         self, base_architecture: ArchitectureSpec, reflection: ReflectionResult
     ) -> ArchitectureSpec:
@@ -45,7 +62,15 @@ class ArchitectureModifier:
 
         for rec in sorted_recs:
             action = rec.action.upper()
-            details = rec.details or {}
+            details = copy.deepcopy(rec.details) if rec.details else {}
+            # Allow fallback attributes if set directly on recommendation object
+            for attr in ("target_agent_id", "agent_id", "role", "tools", "capabilities", "name"):
+                val = getattr(rec, attr, None)
+                if val is not None and attr not in details:
+                    if attr == "target_agent_id" and "agent_id" not in details:
+                        details["agent_id"] = val
+                    else:
+                        details[attr] = val
 
             try:
                 if action in ("ADD_AGENT", "ADD_VERIFICATION_STAGE"):
@@ -302,16 +327,33 @@ class ArchitectureModifier:
         connections: List[Connection],
         details: Dict[str, Any],
     ) -> (bool, str):
-        """Adds a communication edge between two existing agents."""
+        """Adds a communication edge between two existing agents with cycle prevention."""
         source = details.get("source")
         target = details.get("target")
         existing_ids = {a.agent_id for a in agents}
 
         if source in existing_ids and target in existing_ids and source != target:
-            if not any(c.source == source and c.target == target for c in connections):
-                connections.append(Connection(source=source, target=target))
-                logger.info(f"[MODIFIER] Added connection {source} -> {target}")
-                return True, f"Connected {source} -> {target}"
+            if any(c.source == source and c.target == target for c in connections):
+                return False, f"Connection {source} -> {target} already exists"
+
+            # Check if adding source -> target would create a cycle (i.e. target can already reach source)
+            visited = set()
+            queue = [target]
+            while queue:
+                curr = queue.pop(0)
+                if curr == source:
+                    logger.warning(f"[MODIFIER] Rejecting connection {source} -> {target}: would create cycle")
+                    return False, f"Connection {source} -> {target} would create cycle"
+                if curr in visited:
+                    continue
+                visited.add(curr)
+                for conn in connections:
+                    if conn.source == curr:
+                        queue.append(conn.target)
+
+            connections.append(Connection(source=source, target=target))
+            logger.info(f"[MODIFIER] Added connection {source} -> {target}")
+            return True, f"Connected {source} -> {target}"
         return False, f"Invalid connection endpoints {source} -> {target}"
 
     def _apply_remove_connection(

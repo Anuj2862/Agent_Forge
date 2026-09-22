@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.schemas.task import TaskSpec
 from app.schemas.architecture import ArchitectureSpec
@@ -94,7 +94,7 @@ async def evaluate_execution(
         run_number=run_number,
         task_type=task_spec.task_type,
         complexity=task_spec.complexity,
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
         execution_duration_seconds=execution_data.get("duration_seconds", 0.0),
         agent_count=len(architecture_spec.agents),
         topology=architecture_spec.topology.value

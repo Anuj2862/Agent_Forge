@@ -219,6 +219,10 @@ class FailureAnalyzer:
         if len(architecture.agents) <= 1:
             return None
 
+        # In parallel topology, agents run independently without inter-agent connections
+        if architecture.topology == TopologyType.PARALLEL:
+            return None
+
         connected_nodes = set()
         for conn in architecture.connections:
             connected_nodes.add(conn.source)

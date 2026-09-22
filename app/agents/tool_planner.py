@@ -19,7 +19,11 @@ class ToolResolutionError(ValueError, KeyError):
 # Canonical mapping from capability names to Member 2 registered executable tools
 CAPABILITY_TO_TOOL: Dict[str, str] = {
     "code_execution": "python_tool",
+    "python_execution": "python_tool",
+    "code_generation": "python_tool",
+    "code_analysis": "python_tool",
     "information_retrieval": "document_retriever",
+    "database_query": "document_retriever",
     "web_search": "web_search",
     "python_tool": "python_tool",
     "document_retriever": "document_retriever",
@@ -31,7 +35,62 @@ NON_EXECUTABLE_CAPABILITIES: Set[str] = {
     "data_analysis",
     "data_loading",
     "table_generation",
+    "data_aggregation",
+    "data_visualization",
+    "csv_parsing",
+    "content_synthesis",
+    "synthesis",
+    "text_generation",
+    "technical_writing",
+    "report_generation",
+    "document_generation",
+    "summarization",
+    "fact_checking",
+    "verification",
+    "planning",
+    "reasoning",
+    "analysis",
+    "review",
+    "editing",
+    "orchestration",
+    "evaluation",
+    "reflection",
+    "drafting",
+    "formatting",
 }
+
+COGNITIVE_TERMS: Set[str] = {
+    "synthesis",
+    "writing",
+    "generation",
+    "summarization",
+    "analysis",
+    "checking",
+    "verification",
+    "planning",
+    "reasoning",
+    "review",
+    "editing",
+    "formatting",
+    "evaluation",
+    "reflection",
+    "orchestration",
+    "aggregation",
+    "parsing",
+    "loading",
+    "drafting",
+    "critique",
+}
+
+
+def is_non_executable_capability(requirement: str) -> bool:
+    """Check if a requirement represents a cognitive or analytical duty rather than an executable tool."""
+    req_lower = requirement.lower()
+    if req_lower in NON_EXECUTABLE_CAPABILITIES:
+        return True
+    if any(req_lower.endswith(sfx) for sfx in ("_tool", "_api", "_service", "_engine", "_plugin")):
+        return False
+    return any(term in req_lower for term in COGNITIVE_TERMS)
 
 
 class ToolPlanner:
@@ -61,7 +120,7 @@ class ToolPlanner:
         seen: Set[str] = set()
 
         for req in requirements:
-            if req in NON_EXECUTABLE_CAPABILITIES:
+            if is_non_executable_capability(req):
                 logger.debug(
                     f"Requirement '{req}' is a non-executable capability and will not be assigned as an executable tool."
                 )
