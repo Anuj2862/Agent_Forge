@@ -1,15 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { evaluateExecution, runExecution, api } from "@/lib/api";
 import ArchitectureGraph from "@/components/architecture/ArchitectureGraph";
 import ExecutionTimeline from "@/components/execution/ExecutionTimeline";
 import MetricsPanel from "@/components/evaluation/MetricsPanel";
 import ReflectionPanel from "@/components/evaluation/ReflectionPanel";
 
-export default function RunPage({ params }: { params: { task_id: string } }) {
-  const taskId = params.task_id;
+export default function RunPage({ params }: { params?: any }) {
+  const routerParams = useParams();
+  const taskId =
+    (routerParams?.task_id as string) ||
+    (params && typeof params.task_id === "string" ? params.task_id : "");
   const searchParams = useSearchParams();
   const execParam = searchParams.get("exec");
 
@@ -22,6 +25,7 @@ export default function RunPage({ params }: { params: { task_id: string } }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!taskId) return;
     async function load() {
       try {
         setLoading(true);
