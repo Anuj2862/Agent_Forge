@@ -214,7 +214,7 @@ Input Task: *"Research the impact of Generative AI on cybersecurity and produce 
 | **Repository Scaffolding** | **IMPLEMENTED** | Folder structure, `.gitignore`, `.env.example`, `requirements.txt`, docs |
 | **Shared Pydantic Schemas** | **IMPLEMENTED** | `TaskSpec`, `ArchitectureSpec`, `EvaluationResult`, `ReflectionResult` |
 | **FastAPI Backend Core** | **IMPLEMENTED** | Scaffolding API server with `/health` route & router modules |
-| **Meta Controller & Generator** | *IN DEVELOPMENT* | Subsystem structure initialized; logic assigned to `member-1` |
+| **Meta Controller & Generator** | **IMPLEMENTED** | `TaskAnalyzer`, `TaskDecomposer`, `CapabilityExtractor`, `ComplexityAnalyzer`, `ArchitectureGenerator`, `MetaController` — all implemented & tested on `member-1` |
 | **Agent Factory & LangGraph Engine**| *IN DEVELOPMENT* | Subsystem structure initialized; logic assigned to `member-2` |
 | **Evaluator & Reflection Engine** | *IN DEVELOPMENT* | Subsystem structure initialized; logic assigned to `member-3` |
 | **Evolution Memory Store** | *IN DEVELOPMENT* | Subsystem structure initialized; logic assigned to `member-4` |
@@ -224,7 +224,86 @@ Input Task: *"Research the impact of Generative AI on cybersecurity and produce 
 
 ---
 
-## 10. Quick Start & Local Development
+## 10. Member 1 — Meta Controller Implementation
+
+All Member 1 subsystems are implemented and tested on the `member-1` branch.
+
+### Implemented Components
+
+| Component | File | Description |
+| :--- | :--- | :--- |
+| `TaskAnalyzer` | `app/controller/task_analyzer.py` | Parses a natural-language prompt into a validated `TaskSpec` using Gemini |
+| `TaskDecomposer` | `app/controller/task_decomposer.py` | Decomposes a task into a structured `List[Subtask]` using Gemini |
+| `CapabilityExtractor` | `app/controller/capability_extractor.py` | Extracts required agent capabilities as a `List[str]` using Gemini |
+| `ComplexityAnalyzer` | `app/controller/complexity_analyzer.py` | Estimates task complexity using transparent heuristics (no API call) |
+| `ArchitectureGenerator` | `app/controller/architecture_generator.py` | Synthesizes a validated `ArchitectureSpec` from a `TaskSpec` |
+| `MetaController` | `app/controller/meta_controller.py` | Orchestrates the full pipeline: prompt → `ArchitectureSpec` |
+
+### Meta Controller Pipeline
+
+```
+Natural-Language Prompt
+        │
+        ▼
+┌─────────────────────┐
+│    TaskAnalyzer     │  ← Gemini: produces TaskSpec
+└──────────┬──────────┘
+           ▼
+┌─────────────────────┐
+│   TaskDecomposer    │  ← Gemini: produces List[Subtask]
+└──────────┬──────────┘
+           ▼
+┌─────────────────────┐
+│CapabilityExtractor  │  ← Gemini: produces List[str]
+└──────────┬──────────┘
+           ▼
+┌─────────────────────┐
+│ ComplexityAnalyzer  │  ← Heuristic: produces ComplexityLevel
+└──────────┬──────────┘
+           ▼
+┌─────────────────────┐
+│ArchitectureGenerator│  ← Deterministic: produces ArchitectureSpec
+└──────────┬──────────┘
+           ▼
+     ArchitectureSpec
+```
+
+### Supported Topologies
+
+| Task Type | Topology | Connections |
+| :--- | :--- | :--- |
+| `data_analysis`, `research` | `parallel` | None (independent agents) |
+| All other types | `pipeline` | Sequential edges |
+
+### Running the Mid-Sem Demo
+
+```bash
+# Generate two contrasting architectures (parallel vs pipeline)
+python generate_demo_architectures.py
+
+# Run the full end-to-end pipeline manually
+python test_meta_controller_manual.py
+
+# Run all 19 automated tests
+pytest -v
+```
+
+### Test Coverage
+
+| Test File | Tests | What It Covers |
+| :--- | :--- | :--- |
+| `test_task_analyzer.py` | 1 | Pydantic-validated `TaskSpec` from mocked Gemini |
+| `test_task_decomposer.py` | 1 | Valid `List[Subtask]` from mocked Gemini |
+| `test_capability_extractor.py` | 1 | Unique capability list from mocked Gemini |
+| `test_complexity_analyzer.py` | 4 | LOW / MEDIUM / HIGH classification + empty prompt error |
+| `test_architecture_generator.py` | 5 | Parallel & pipeline topologies, agent preservation, error handling |
+| `test_meta_controller.py` | 2 | Full orchestration order (mocked) + empty prompt rejection |
+
+> See [`docs/member-1-architecture-examples.md`](docs/member-1-architecture-examples.md) for real generated `ArchitectureSpec` examples.
+
+---
+
+## 11. Quick Start & Local Development
 
 ### 1. Clone & Set Up Backend
 ```bash
@@ -261,5 +340,5 @@ Dashboard URL: `http://localhost:3000`
 
 ---
 
-## 11. License & Academic Context
+## 12. License & Academic Context
 Developed for the Third-Year (TY) **Engineering Design & Innovation (EDI)** project. Designed with future patent potential in mind.
