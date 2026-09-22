@@ -7,6 +7,8 @@ from app.schemas.architecture import ArchitectureSpec, AgentConfigSchema, Topolo
 from app.schemas.execution import (
     ExecutionStatus,
     AgentStepLog,
+    AgentExecutionTrace,
+    ToolCallRecord,
     ExecutionState,
     ExecutionStateModel,
     ExecutionResult,
@@ -25,6 +27,8 @@ __all__ = [
     "Connection",
     "ExecutionStatus",
     "AgentStepLog",
+    "AgentExecutionTrace",
+    "ToolCallRecord",
     "ExecutionState",
     "ExecutionStateModel",
     "ExecutionResult",
@@ -35,4 +39,3 @@ __all__ = [
     "IssueCategory",
     "ArchitecturalRecommendation",
 ]
-
