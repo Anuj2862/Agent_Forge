@@ -18,13 +18,19 @@ Member 2 does **not** generate architectures, evaluate outputs, or manage memory
 ArchitectureSpec          (Member 1 output — source of truth)
         |
         v
+ToolPlanner               (app/agents/tool_planner.py: plans once per architecture)
+        |
+        v
+Tool assignments          (Dict[agent_id -> List[resolved_tool_names]])
+        |
+        v
 AgentFactory              (app/agents/agent_factory.py)
         |
         v
 Dict[agent_id -> BaseAgent]   (one per ArchitectureSpec.agents entry)
         |
         v
-ToolRegistry              (resolves AgentConfigSchema.tools by name)
+ToolRegistry              (retrieves executable callables by resolved name)
         |
         v
 CommunicationGraphBuilder (app/execution/communication_graph.py)
@@ -79,18 +85,44 @@ No part of this flow is topology-specific in the calling code. The same `Executi
 
 ---
 
-## 4. Agent Factory (`app/agents/agent_factory.py`)
+## 4. Tool Planner (`app/agents/tool_planner.py`)
 
-`AgentFactory` converts `ArchitectureSpec` agent definitions into executable `BaseAgent` instances. There are no hard-coded role checks or if/else branches for specific agent types.
+`ToolPlanner` plans and resolves concrete tool requirements for agents across an `ArchitectureSpec`:
+
+**Primary method:**
+```python
+planner = ToolPlanner(registry=tool_registry)
+assignments = planner.plan(architecture)
+# returns Dict[agent_id -> List[str]] (resolved tool names)
+```
+
+**Resolution Rules:**
+- **Mapped capabilities**:
+  - `code_execution` -> `python_tool`
+  - `information_retrieval` -> `document_retriever`
+  - `web_search` -> `web_search`
+  - `python_tool` -> `python_tool`
+  - `document_retriever` -> `document_retriever`
+- **Direct registered tools**: Validated directly against `ToolRegistry.has_tool()`.
+- **Non-executable capabilities**: `data_analysis`, `data_loading`, `table_generation` represent analytical/cognitive capabilities and are ignored for executable tool assignment without raising errors.
+- **Unknown executable tools/capabilities**: Raise `ToolResolutionError` (subclass of `ValueError`).
+- **Deduplication**: Preserves insertion order while eliminating duplicate tool assignments for each agent.
+
+---
+
+## 5. Agent Factory (`app/agents/agent_factory.py`)
+
+`AgentFactory` converts `ArchitectureSpec` agent definitions into executable `BaseAgent` instances using `ToolPlanner`. There are no hard-coded role checks or if/else branches for specific agent types.
 
 **Primary method:**
 
 ```python
-factory.create_from_architecture(architecture, llm_runner=None)
+factory = AgentFactory(registry=tool_registry, planner=tool_planner)
+agents = factory.create_from_architecture(architecture, llm_runner=None)
 # returns Dict[agent_id -> BaseAgent]
 ```
 
-Internally this calls `create_agent_team()` which calls `create_agent()` for each entry in `ArchitectureSpec.agents`.
+Internally, `create_from_architecture()` calls `ToolPlanner.plan(architecture)` **once** for the entire architecture, obtaining the `{agent_id: [tool_names]}` assignment mapping, and instantiates each `BaseAgent` with callables retrieved from `ToolRegistry`.
 
 **Validation performed:**
 
@@ -98,13 +130,11 @@ Internally this calls `create_agent_team()` which calls `create_agent()` for eac
 - `agent_id` is a non-empty string.
 - `role` is a non-empty string.
 - No duplicate `agent_id` values within the same team.
-- Every tool name listed in `AgentConfigSchema.tools` must exist in the `ToolRegistry` (raises `KeyError` with the available tools listed if not).
-
-**Tool binding** — tools are resolved by name from the registry at instantiation time. The agent holds references to the callable functions, not to the registry itself.
+- Every executable tool or capability must be resolvable via `ToolPlanner` / `ToolRegistry` (raises `ToolResolutionError` if unknown).
 
 ---
 
-## 5. Tool Registry (`app/tools/tool_registry.py`)
+## 6. Tool Registry (`app/tools/tool_registry.py`)
 
 `ToolRegistry` is a simple name → callable dictionary with explicit register/get/list operations. A single global singleton `tool_registry` is auto-populated at import time from `app/tools/__init__.py`.
 
