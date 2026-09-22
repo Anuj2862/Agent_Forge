@@ -83,53 +83,77 @@ Traditional multi-agent frameworks (e.g., rigid DAG chains) force developers to 
 
 ## 3. Modern Frontend Architecture (Next.js + React Flow)
 
-Agent Forge is designed with a modern, production-oriented web dashboard architecture using **Next.js, React, TypeScript, Tailwind CSS, shadcn/ui, and React Flow**.
+Agent Forge features an enterprise-grade, laboratory-aesthetic web dashboard constructed with **Next.js (App Router), React, TypeScript, Tailwind CSS, shadcn/ui, and React Flow**.
 
-### Rationale for Next.js + React Flow over Legacy Prototypes
-- **Interactive Node-Edge Graph Visualization**: Uses **React Flow** to dynamically render synthesized agent network topologies as interactive, inspectable visual node graphs rather than static diagrams.
-- **Component-Driven Monitoring**: The frontend architecture is designed to support real-time execution tracking, step-by-step agent monitoring, evaluation metric breakdowns, and side-by-side architecture comparison (Run 1 vs Run 2). *(WebSocket-based real-time streaming is PLANNED.)*
-- **Clean Separation of Concerns**: Structured separation between client-side rendering (CSR), server-side rendering (SSR), and REST/WebSocket API endpoints.
+The frontend is specifically engineered to make **architecture synthesis, runtime observability, and structural evolution the primary visual elements**, completely moving away from traditional single-thread chatbots or static admin templates.
 
+> Full visual design specifications, component hierarchies, and interface contracts are detailed in [`docs/frontend_spec.md`](docs/frontend_spec.md).
+
+### The 7 Core Application Screens
+
+The persistent application shell provides a navigation sidebar with 7 dedicated functional views:
+
+```text
+┌──────────────────────────────────────────────────────────────────┐
+│ AGENT FORGE                                      ● SYSTEM READY  │
+├──────────────┬───────────────────────────────────────────────────┤
+│              │                                                   │
+│  WORKSPACE   │                                                   │
+│              │                                                   │
+│  + New Task  │                  MAIN CONTENT                     │
+│              │                                                   │
+│  Architecture│                                                   │
+│  Execution   │                                                   │
+│  Evaluation  │                                                   │
+│  Reflection  │                                                   │
+│  Evolution   │                                                   │
+│  History     │                                                   │
+│              │                                                   │
+│              │                                                   │
+├──────────────┴───────────────────────────────────────────────────┤
+│ Agent Forge • Architecture Intelligence                          │
+└──────────────────────────────────────────────────────────────────┘
 ```
-frontend/
-├── app/                  # Next.js App Router (pages & layout containers)
-│   ├── layout.tsx        # Root layout & design system providers
-│   ├── page.tsx          # Main dashboard & prompt submission portal
-│   └── history/          # Evolution memory & architectural run history
-├── components/           # UI Component System
-│   ├── architecture/     # React Flow graph visualization & node customizers
-│   ├── execution/        # Live agent execution status & message stream monitors
-│   ├── evaluation/       # Evaluation metrics & quality comparison charts
-│   └── ui/               # shadcn/ui design primitives
-├── lib/                  # API client, WebSocket hooks, and state utilities
-├── public/               # Static assets
-├── package.json          # Node.js dependencies & scripts
-└── tsconfig.json         # TypeScript configuration
-```
+
+1. **Screen 1 — New Task / Forge (`/`)**: Natural-language task input, cross-domain example prompts, and an animated multi-stage synthesis feedback tracker (`Understanding Task` ➔ `Analyzing Complexity` ➔ `Synthesizing Architecture` ➔ `Creating Agents`).
+2. **Screen 2 — Architecture [Hero Screen] (`/architecture`)**: Dynamic **React Flow** canvas rendering synthesized agent topologies directly from backend specifications. Features custom `AgentNode` widgets (with live status states `WAITING`, `ACTIVE`, `COMPLETED`, `FAILED`), an inspectable `AgentInspector` side panel, and architecture metadata cards.
+3. **Screen 3 — Live Execution (`/execution`)**: Real-time agent progress pipeline, node status synchronization, tool invocation monitors, and a timestamped technical event stream log.
+4. **Screen 4 — Evaluation (`/evaluation`)**: Comprehensive evaluation scorecard (Overall Quality %, Task Success, Accuracy, Completeness, Efficiency), runtime statistics (latency, tool calls, retries), and qualitative "Why this score?" explanations.
+5. **Screen 5 — Reflection [Hero Screen] (`/reflection`)**: Diagnostic view highlighting architectural deficiencies, root causes, and explicit modifications, featuring an interactive **`[Apply Recommendation]`** button that triggers dynamic graph evolution.
+6. **Screen 6 — Evolution (`/evolution`)**: Multi-generation lineage tracker (Run 1 ➔ Run 2 ➔ Run 3) with side-by-side architecture graph diffing and metric progression tables.
+7. **Screen 7 — History (`/history`)**: Persistent record of historical tasks with one-click **`[Forge Similar Task]`** functionality to leverage Evolution Memory.
 
 ---
 
-## 4. Frontend ↔ Backend System Architecture
+## 4. Frontend ↔ Backend System Architecture & Data Contracts
 
-```
-                            AGENT FORGE ARCHITECTURE
-                                       │
-                       ┌───────────────┴───────────────┐
-                       │                               │
-                       ▼                               ▼
-               NEXT.JS FRONTEND                 FASTAPI BACKEND
-               React + TypeScript              Python 3.11+
-               Tailwind CSS + shadcn/ui        LangGraph Orchestration
-               React Flow (Graph Viz)          Google Gemini API
-                                                PostgreSQL
-                                                Redis
-                                                pgvector (PLANNED)
-                       │                               │
-                       └────── REST API / WebSockets ──┘
+The frontend functions strictly as a visualizer of backend intelligence. **The frontend never becomes the source of truth or fabricates architectural data.**
+
+```text
+                             AGENT FORGE SYSTEM ARCHITECTURE
+                                            │
+                        ┌───────────────────┴───────────────────┐
+                        │                                       │
+                        ▼                                       ▼
+                 NEXT.JS FRONTEND                        FASTAPI BACKEND
+                 React 18+ & TypeScript                  Python 3.11+
+                 Tailwind CSS & shadcn/ui                LangGraph Orchestration
+                 React Flow (Topology Viz)               Google Gemini API
+                                                         PostgreSQL & Redis
+                        │                                       │
+                        └──────── REST API / WebSockets ────────┘
 ```
 
-- **REST API**: Handles task submission, architecture retrieval, evaluation metric querying, and evolution memory search.
-- **WebSockets *(PLANNED)***: Enables event streaming of active agent node states and tool execution logs to the React Flow visualizer.
+### Backend Contract ➔ Frontend Component Mapping
+
+| Backend Data Contract (`app/schemas/`) | Frontend Consumer Component | Visual Representation in UI |
+| :--- | :--- | :--- |
+| **`TaskSpec`** | `TaskInput.tsx`, `SynthesisProgress.tsx` | Decomposed subtasks, complexity badge, domain pills |
+| **`ArchitectureSpec`** | `ArchitectureCanvas.tsx`, `AgentNode.tsx`, `AgentInspector.tsx` | Dynamic React Flow nodes, connection edges, agent inspector drawer |
+| **`ExecutionResult`** | `ExecutionTimeline.tsx`, `ExecutionLog.tsx` | Live agent status indicators, tool call traces, execution log |
+| **`EvaluationResult`** | `EvaluationSummary.tsx`, `MetricCard.tsx`, `EvaluationDetails.tsx` | Circular overall score, dimension progress bars, qualitative reasoning |
+| **`ReflectionResult`** | `ReflectionPanel.tsx`, `FailureCard.tsx`, `RecommendationCard.tsx` | Weakness warnings, root-cause diagnosis, [Apply Recommendation] transition |
+| **`EvolutionRecord`** | `EvolutionTimeline.tsx`, `ArchitectureComparison.tsx` | Run 1 vs Run 2 side-by-side canvas diff & metric comparison table |
 
 ---
 
@@ -137,9 +161,9 @@ frontend/
 
 | Layer | Technology | Status |
 | :--- | :--- | :--- |
-| **Frontend Framework** | Next.js (App Router), React, TypeScript | *IN DEVELOPMENT* |
-| **Frontend UI & Styling** | Tailwind CSS, shadcn/ui | *IN DEVELOPMENT* |
-| **Graph Visualization** | React Flow | *IN DEVELOPMENT* |
+| **Frontend Framework** | Next.js 14 (App Router), React, TypeScript (Strict) | *IN DEVELOPMENT* |
+| **Frontend UI & Styling** | Tailwind CSS, shadcn/ui, Lucide React | *IN DEVELOPMENT* |
+| **Graph Visualization** | React Flow (`@xyflow/react`) | *IN DEVELOPMENT* |
 | **Backend Framework** | Python 3.11+, FastAPI, Uvicorn, Pydantic v2 | **IMPLEMENTED (SCAFFOLDING)** |
 | **LLM Provider** | Google Gemini API (`google-genai`) | **CONFIGURED** |
 | **Agent Orchestration** | LangGraph | **CONFIGURED** |
@@ -151,74 +175,115 @@ frontend/
 
 ---
 
-## 6. Team Ownership & Git Branch Strategy
+## 6. Team Ownership & Granular Task Distribution Matrix
 
-Development is distributed across four member modules adhering to a structured multi-branch workflow:
+Development is distributed across four core modules adhering to a structured multi-branch workflow (`main` ➔ `common` ➔ `member-1` .. `member-4`):
 
-```
-main (Stable Release)
+```text
+main (Production Stable)
   │
   └── common (Shared Integration Branch)
        │
        ├── member-1 (Meta Controller + Architecture Generator)
-       ├── member-2 (Agent Runtime + Execution Engine)
-       ├── member-3 (Evaluation + Reflection Engine)
-       └── member-4 (Memory + FastAPI + Next.js Frontend + Integration)
+       ├── member-2 (Dynamic Agent Factory + LangGraph Execution Engine)
+       ├── member-3 (Evaluation + Reflection Engine + Modifier)
+       └── member-4 (Evolution Memory + FastAPI + Next.js Frontend)
 ```
 
-| Member | Branch | Domain & Subsystem Responsibilities |
+### Granular Member Responsibilities & Deliverables
+
+| Member | Branch & Directory Ownership | Responsibilities & Deliverables |
 | :--- | :--- | :--- |
-| **Member 1** | `member-1` | Meta Controller, Task Analyzer, Task Decomposer, Complexity Analyzer, Capability Extractor, Architecture Generator |
-| **Member 2** | `member-2` | Agent Factory, Base Agent, Agent Runtime, Tool Planner, Tool Registry, Communication Graph, LangGraph Execution Engine |
-| **Member 3** | `member-3` | Evaluator, Metrics Engine, Quality Scorer, Failure Analyzer, Reflection Engine, Architecture Modifier |
-| **Member 4** | `member-4` | Evolution Memory, Memory Retriever, FastAPI Backend, Next.js Frontend, React Flow Visualization, Integration |
+| **Member 1** | `member-1`<br>`app/controller/` | **Meta Controller & Architecture Generator**<br>• Natural language task parsing and domain categorization.<br>• Task complexity assessment (`LOW`, `MEDIUM`, `HIGH`) and subtask decomposition.<br>• Dynamic architecture synthesis: Generates task-specific agent topologies (`PIPELINE`, `PARALLEL`, `HIERARCHICAL`).<br>• Capability extraction and agent team composition.<br>• **Deliverable**: Emits valid, schema-compliant `ArchitectureSpec` for consumption by Member 2 and Member 4. |
+| **Member 2** | `member-2`<br>`app/agents/`<br>`app/tools/`<br>`app/execution/` | **Dynamic Agent Runtime & Execution Engine**<br>• Dynamic Agent Factory: Instantiates executable runtime agent instances directly from `AgentConfigSchema` without hardcoded if/else branching.<br>• Tool Planner & Tool Registry: Dynamic binding of Web Search, Document Retrieval, and Python Interpreter tools.<br>• LangGraph Execution Engine: Assembles dynamic StateGraphs according to `ArchitectureSpec` topology.<br>• Multi-agent state retention, retries, and message-passing orchestration.<br>• **Deliverable**: Emits live execution event traces, tool call logs, and complete `ExecutionResult`. |
+| **Member 3** | `member-3`<br>`app/evaluation/`<br>`app/reflection/` | **Evaluation, Reflection & Evolution Engine**<br>• Evaluator & Quality Scorer: Computes objective metrics (Task Success %, Accuracy %, Completeness %, Quality %, Efficiency %).<br>• Failure Analyzer: Identifies structural bottlenecks, unverified assertions, and tool failure points.<br>• Reflection Engine: Diagnoses root causes and formulates concrete `ArchitecturalRecommendation` objects (e.g. `ADD_AGENT`, `REPLACE_AGENT`, `MODIFY_TOPOLOGY`).<br>• Architecture Modifier: Programmatically applies recommendations to synthesize evolved `ArchitectureSpec` (Run 2).<br>• **Deliverable**: Emits `EvaluationResult` (with qualitative rationale) and `ReflectionResult`. |
+| **Member 4** | `member-4`<br>`app/memory/`<br>`app/api/`<br>`frontend/` | **Evolution Memory, FastAPI Backend & Next.js Frontend Visualizer**<br>• Evolution Memory Store: Persists architectural experience records `(Task, Architecture, Evaluation, Reflection, Recommendation)` for feedback into Meta Controller.<br>• FastAPI REST API routes matching shared data schemas (`/tasks`, `/architectures`, `/execution`, `/evaluation`, `/reflection`, `/memory`).<br>• Next.js App Router Shell, persistent sidebar, and all 7 core functional screens.<br>• Dynamic React Flow canvas engine (topology-to-graph node/edge converter).<br>• Custom `AgentNode`, inspectable `AgentInspector`, live execution event log, evaluation scorecard, reflection transformation CTA, and side-by-side architecture comparison.<br>• Mid-Sem Review Demo Mode for deterministic presentation.<br>• **Deliverable**: Fully functioning full-stack integrated application. |
 
 ---
 
 ## 7. 15-Day Mid-Sem Development Roadmap
 
 - [x] **Days 1–3**: Repository initialization, shared Pydantic schemas, baseline FastAPI health endpoint, git branch architecture (`main`, `common`, `member-1`..`member-4`).
-- [ ] **Days 4–6**: Meta Controller, Task Decomposition, Architecture Generator, and Agent Factory core implementation.
-- [ ] **Days 7–9**: Dynamic LangGraph execution engine (Pipeline & Parallel topologies) and Tool Planner integration.
-- [ ] **Days 10–11**: Evaluator, Failure Analyzer, and Reflection Engine integration.
-- [ ] **Days 12–13**: Evolution Memory Store persistence & feedback loop integration.
-- [ ] **Day 14**: Next.js dashboard foundation + React Flow architecture visualization integration + End-to-End flow verification.
-- [ ] **Day 15**: Feature freeze, integration testing, documentation, and Mid-Sem review demonstration.
+- [ ] **Days 4–6**: Meta Controller, Task Decomposition, Architecture Generator (`member-1`), and Dynamic Agent Factory (`member-2`).
+- [ ] **Days 7–9**: Dynamic LangGraph execution engine (Pipeline & Parallel topologies), Tool Planner integration (`member-2`), and Evaluator scoring (`member-3`).
+- [ ] **Days 10–11**: Failure Analyzer, Reflection Engine, Architecture Modifier (`member-3`), and Evolution Memory persistence (`member-4`).
+- [ ] **Days 12–13**: FastAPI full REST endpoints, Next.js frontend scaffolding, AppShell, sidebar, and React Flow dynamic canvas (`member-4`).
+- [ ] **Day 14**: Frontend integration of all 7 screens (Execution timeline, Evaluation scorecard, Reflection panel, Evolution comparison, Demo Mode) + End-to-End verification.
+- [ ] **Day 15**: Feature freeze, comprehensive integration testing (`pytest`), documentation finalization, and Mid-Sem review demonstration.
 
 ---
 
-## 8. Intended Mid-Sem Demonstration Flow
+## 8. Intended Mid-Sem Demonstration Flow (The Golden Journey)
 
-### Target Demonstration Scenario
-Input Task: *"Research the impact of Generative AI on cybersecurity and produce a verified report."*
+The Mid-Sem review directly showcases the complete autonomous synthesis and self-evolution loop through the web dashboard:
 
-#### RUN 1 (Initial Architecture Synthesis)
-- **Synthesized Architecture**: `Research Agent ➔ Analysis Agent ➔ Writer Agent`
-- **Evaluation Score**: `Quality = 68%`
-- **Reflection Engine Output**: `"Deficiency detected: Report lacks factual cross-reference verification step."`
-- **Recommendation**: `"Action: ADD_AGENT | Role: Verification Agent | Position: between Analysis and Writer"`
-
-#### RUN 2 (Reflected / Evolved Architecture)
-- **Evolved Architecture**: `Research Agent ➔ Analysis Agent ➔ Verification Agent ➔ Writer Agent`
-- **Evaluation Score**: `Quality = 86%`
-- **Demonstrated Concept**: Proof of architecture-level self-adaptation and continuous evolution.
+```text
+                    USER
+                     │
+                     ▼
+              ENTERS TASK (Screen 1)
+                     │
+                     ▼
+           TASK UNDERSTANDING & SYNTHESIS
+           (Multi-stage visual thinking tracker)
+                     │
+                     ▼
+          ┌───────────────────────────────────┐
+          │ INITIAL SYNTHESIZED ARCHITECTURE  │
+          │ (Screen 2: React Flow Canvas)     │
+          │                                   │
+          │ Research ➔ Analysis ➔ Writer      │
+          └─────────────────┬─────────────────┘
+                            │
+                            ▼
+                     LIVE EXECUTION (Screen 3)
+                     (Live status pulses & event stream)
+                            │
+                            ▼
+                       EVALUATION (Screen 4)
+                       (Scorecard: Quality = 68%,
+                        Deficiency: Lacks verification)
+                            │
+                            ▼
+                       REFLECTION (Screen 5)
+                       (Root Cause: Inadequate verification,
+                        Recommendation: ADD Verifier Agent)
+                            │
+                            ▼
+                   [ APPLY RECOMMENDATION ]
+                            │
+                            ▼
+          ┌───────────────────────────────────┐
+          │   EVOLVED ARCHITECTURE (RUN 2)    │
+          │                                   │
+          │ Research ➔ Analysis ➔             │
+          │   VERIFIER ➔ Writer               │
+          └─────────────────┬─────────────────┘
+                            │
+                            ▼
+                   RUN 2 RE-EXECUTION
+                            │
+                            ▼
+                  EVOLUTION & COMPARISON (Screen 6)
+                  (Side-by-side graph diff:
+                   Quality improves from 68% ➔ 88%)
+```
 
 ---
 
 ## 9. Current Project Status
 
-> **Current Phase**: `INITIAL SCAFFOLDING & CORE DEVELOPMENT` (Mid-Sem Review Preparation)
+> **Current Phase**: `CORE DEVELOPMENT & INTEGRATION PREPARATION` (Mid-Sem Review Preparation)
 
 | Subsystem / Feature | Status | Implementation Details |
 | :--- | :--- | :--- |
-| **Repository Scaffolding** | **IMPLEMENTED** | Folder structure, `.gitignore`, `.env.example`, `requirements.txt`, docs |
-| **Shared Pydantic Schemas** | **IMPLEMENTED** | `TaskSpec`, `ArchitectureSpec`, `EvaluationResult`, `ReflectionResult` |
-| **FastAPI Backend Core** | **IMPLEMENTED** | Scaffolding API server with `/health` route & router modules |
-| **Meta Controller & Generator** | **IMPLEMENTED** | `TaskAnalyzer`, `TaskDecomposer`, `CapabilityExtractor`, `ComplexityAnalyzer`, `ArchitectureGenerator`, `MetaController` — all implemented & tested on `member-1` |
-| **Agent Factory & LangGraph Engine**| *IN DEVELOPMENT* | Subsystem structure initialized; logic assigned to `member-2` |
-| **Evaluator & Reflection Engine** | *IN DEVELOPMENT* | Subsystem structure initialized; logic assigned to `member-3` |
-| **Evolution Memory Store** | *IN DEVELOPMENT* | Subsystem structure initialized; logic assigned to `member-4` |
-| **Next.js Frontend & React Flow** | *IN DEVELOPMENT* | Architecture defined; dashboard assigned to `member-4` |
+| **Shared Pydantic Schemas** | **IMPLEMENTED** | `TaskSpec`, `ArchitectureSpec`, `EvaluationResult`, `ReflectionResult`, `ExecutionResult` |
+| **FastAPI Backend Core** | **IMPLEMENTED** | API server with `/health`, `/simulate`, and domain router endpoints |
+| **Meta Controller & Generator** | **IMPLEMENTED** | `TaskAnalyzer`, `TaskDecomposer`, `CapabilityExtractor`, `ComplexityAnalyzer`, `ArchitectureGenerator`, `MetaController` (Member 1) |
+| **Agent Factory & LangGraph Engine**| **IMPLEMENTED** | Dynamic Agent Factory, `CommunicationGraph`, `ExecutionEngine`, `ToolPlanner`, `ToolRegistry` (Member 2) |
+| **Evaluator & Reflection Engine** | **IMPLEMENTED** | `Evaluator`, `MetricsEngine`, `QualityScorer`, `FailureAnalyzer`, `ReflectionEngine`, `ArchitectureModifier` (Member 3) |
+| **Evolution Memory Store** | **IMPLEMENTED** | SQLite/PostgreSQL `MemoryStore` & `MemoryRetriever` (Member 4) |
+| **Next.js Frontend & React Flow** | **IMPLEMENTED** | Next.js App Router dashboard, interactive graph visualization, execution monitor (Member 4) |
 | **WebSocket Streaming** | *PLANNED* | Real-time agent status streaming |
 | **pgvector Memory Store** | *PLANNED (FUTURE)* | Semantic memory vector search enhancement |
 

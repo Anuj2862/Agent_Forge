@@ -63,25 +63,34 @@ Member Branch  ──► Local Testing  ──► Git Commit  ──► PR to co
 
 ## 4. Code Ownership & Subsystem Boundaries
 
-Each team member owns specific subsystem directories. Modify files outside your assigned domain only when necessary for integration, and notify the owner:
+Each team member owns specific subsystem directories and is responsible for their stability, test coverage, and documentation:
 
-- **Member 1**: `app/controller/`
-- **Member 2**: `app/agents/`, `app/tools/`, `app/execution/`
-- **Member 3**: `app/evaluation/`, `app/reflection/`
-- **Member 4**: `app/memory/`, `app/api/`, `frontend/`
-- **Shared / All**: `app/schemas/`, `app/core/`, `tests/`
+- **Member 1 (`member-1`)**: `app/controller/`
+  - Responsibilities: Meta Controller, Task Decomposer, Complexity Assessor, Architecture Generator.
+  - Contract Deliverable: Produces validated `TaskSpec` and `ArchitectureSpec` for dynamic graph creation.
+- **Member 2 (`member-2`)**: `app/agents/`, `app/tools/`, `app/execution/`
+  - Responsibilities: Dynamic Agent Factory, Agent Runtime, Tool Planner, Tool Registry, LangGraph Execution Engine.
+  - Contract Deliverable: Executes agent networks dynamically and produces timestamped `ExecutionResult` with traces and tool logs.
+- **Member 3 (`member-3`)**: `app/evaluation/`, `app/reflection/`
+  - Responsibilities: Evaluator & Multi-Metric Scorer, Failure Analyzer, Reflection Engine, Architecture Modifier.
+  - Contract Deliverable: Produces `EvaluationResult` with qualitative rationale and `ReflectionResult` with actionable recommendations.
+- **Member 4 (`member-4`)**: `app/memory/`, `app/api/`, `frontend/`
+  - Responsibilities: Evolution Memory Store, FastAPI Endpoints, Next.js Frontend Dashboard (7 screens), React Flow Graph Engine, Integration.
+  - Contract Deliverable: Provides the interactive production web interface and REST/WebSocket API endpoints.
+- **Shared / All**: `app/schemas/`, `app/core/`, `tests/`, `docs/`
 
 ---
 
 ## 5. Shared Schema Rules (Strict)
 
-Shared Pydantic contracts in `app/schemas/` define the API boundaries between member modules.
+Shared Pydantic contracts in `app/schemas/` define the API boundaries between member modules and the frontend:
 
-- **Do not casually modify existing schema fields.** Changing a shared contract can break other members' components.
+- **Do not casually modify existing schema fields.** Changing a shared contract can break other members' components and frontend TypeScript typings.
 - If a schema field must be added or altered:
   1. Discuss the change with the affected team members first.
   2. Maintain backward compatibility (e.g., use `Optional` fields with default values).
-  3. Update `tests/test_schemas.py` to verify the schema updates.
+  3. Mirror updates to `frontend/lib/types.ts`.
+  4. Update `tests/test_schemas.py` to verify the schema updates.
 
 ---
 
@@ -93,11 +102,39 @@ Shared Pydantic contracts in `app/schemas/` define the API boundaries between me
 
 ---
 
-## 7. Testing Requirements
+## 7. Frontend UI/UX & Coding Guidelines
+
+All frontend contributions under `frontend/` must adhere to the design specification in [`docs/frontend_spec.md`](docs/frontend_spec.md):
+
+1. **AI Laboratory Aesthetic**: Technical, minimal, information-rich, desktop-optimized.
+   - Use subtle borders (`border-border/40`), dark-mode elevation, clean typography, and monospace labels for IDs and latencies.
+   - **Prohibited**: Excessive decorative gradients, continuous particle simulations, glowing sci-fi borders, or animations that impede user interaction.
+2. **Backend is the Source of Truth**:
+   - Never hardcode agent topologies, mock scores, or fake execution states in the UI.
+   - All graphs, agent roles, and evaluation scores must flow directly from the backend API.
+3. **TypeScript Strict Mode**:
+   - All components, props, and API payloads must have explicit TypeScript types matching `app/schemas/`.
+4. **React Flow Best Practices**:
+   - Agent nodes must use custom React Flow node components reflecting live states (`WAITING`, `ACTIVE`, `COMPLETED`, `FAILED`).
+   - Node clicks must dynamically populate the `AgentInspector` side drawer.
+
+---
+
+## 8. Mid-Sem Review Demo Mode Guidelines
+
+To ensure 100% reliable presentations during academic and patent milestone reviews:
+- Include a dedicated **Demo Mode** toggle in the frontend header.
+- Demo mode must run the complete Golden User Journey deterministically (Run 1 initial synthesis ➔ Execution ➔ Evaluation 68% ➔ Reflection ➔ Evolved Run 2 synthesis ➔ Execution ➔ Evaluation 88%).
+- The UI must clearly indicate `[DEMO MODE ACTIVE]` to maintain strict academic transparency.
+
+---
+
+## 9. Testing Requirements
 
 - Every new module or schema must include unit tests in `tests/`.
 - Ensure all tests pass locally prior to creating a Pull Request:
   ```bash
-  pytest
+  pytest -v
   ```
-- Un-tested PRs or broken integration builds will not be merged into `common`.
+- Untested PRs or broken integration builds will not be merged into `common`.
+
