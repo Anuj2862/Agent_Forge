@@ -32,21 +32,21 @@ export default function ArchitectureGraph({
 
       const statusBorderColor =
         status === "active"
-          ? "#38bdf8"
+          ? "#00f0ff"
           : status === "completed"
           ? "#34d399"
           : status === "failed"
           ? "#f43f5e"
           : isEvolved
           ? "#10b981"
-          : "#334155";
+          : "rgba(0, 240, 255, 0.4)";
 
       const statusGlow =
         status === "active"
-          ? "0 0 16px rgba(56, 189, 248, 0.4)"
+          ? "0 0 20px rgba(0, 240, 255, 0.6)"
           : isEvolved
-          ? "0 0 16px rgba(16, 185, 129, 0.35)"
-          : "0 4px 10px rgba(0, 0, 0, 0.4)";
+          ? "0 0 20px rgba(16, 185, 129, 0.5)"
+          : "0 0 14px rgba(0, 240, 255, 0.2)";
 
       return {
         id: agent.agent_id,
@@ -62,7 +62,7 @@ export default function ArchitectureGraph({
             >
               {/* Header row: Status & Evolution Tag */}
               <div className="flex items-center justify-between gap-1 mb-1">
-                <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-cyan-400">
                   {agent.agent_id}
                 </span>
                 {isEvolved && (
@@ -76,7 +76,7 @@ export default function ArchitectureGraph({
               <div className="font-bold text-sm text-slate-100 leading-tight">
                 {agent.name}
               </div>
-              <div className="text-xs text-indigo-300 font-medium">
+              <div className="text-xs text-cyan-300 font-medium">
                 {agent.role}
               </div>
 
@@ -86,7 +86,7 @@ export default function ArchitectureGraph({
                   {agent.tools.map((t: string) => (
                     <span
                       key={t}
-                      className="text-[9px] font-mono bg-indigo-950/80 text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-500/30"
+                      className="text-[9px] font-mono bg-cyan-950/80 text-cyan-300 px-1.5 py-0.5 rounded border border-cyan-500/30"
                     >
                       {t}
                     </span>
@@ -98,13 +98,14 @@ export default function ArchitectureGraph({
         },
         style: {
           background: isEvolved
-            ? "linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(15, 23, 42, 0.95) 100%)"
-            : "rgba(15, 23, 42, 0.94)",
+            ? "radial-gradient(ellipse at top, rgba(16, 185, 129, 0.18) 0%, rgba(6, 14, 32, 0.95) 100%)"
+            : "radial-gradient(ellipse at top, rgba(0, 240, 255, 0.12) 0%, rgba(5, 12, 28, 0.96) 100%)",
           border: `1.5px solid ${statusBorderColor}`,
-          borderRadius: "10px",
-          width: 210,
+          borderRadius: "12px",
+          width: 220,
           boxShadow: statusGlow,
           transition: "all 0.2s ease",
+          backdropFilter: "blur(10px)",
         },
       };
     });
@@ -114,10 +115,10 @@ export default function ArchitectureGraph({
       source: conn.source,
       target: conn.target,
       animated: true,
-      style: { stroke: "#6366f1", strokeWidth: 2 },
+      style: { stroke: "#00f0ff", strokeWidth: 2, filter: "drop-shadow(0 0 6px rgba(0, 240, 255, 0.6))" },
       markerEnd: {
         type: MarkerType.ArrowClosed,
-        color: "#6366f1",
+        color: "#00f0ff",
       },
     }));
 
@@ -125,14 +126,14 @@ export default function ArchitectureGraph({
   }, [architecture, agentStatuses, evolvedAgentIds, onSelectAgent]);
 
   return (
-    <div className="relative w-full h-full rounded-xl overflow-hidden border border-slate-800" style={{ minHeight: "360px", background: "#070b14" }}>
+    <div className="relative w-full h-full rounded-xl overflow-hidden border border-cyan-900/40" style={{ minHeight: "360px", background: "#030713" }}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
         fitView
         attributionPosition="bottom-left"
       >
-        <Background color="#1e293b" gap={18} size={1} />
+        <Background color="#00f0ff15" gap={20} size={1} />
         <Controls />
       </ReactFlow>
 

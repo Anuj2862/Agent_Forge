@@ -747,3 +747,687 @@ body {
 /* ── Utility ─────────────────────────────────────────────────────── */
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mono { font-family: 'SF Mono', 'Fira Code', monospace; }
+
+/* ═════════════════════════════════════════════════════════════════════
+   HOLOGRAPHIC CYBERPUNK COMMAND CENTER THEME
+   Inspired by the futuristic multi-agent war room concept
+   ═════════════════════════════════════════════════════════════════════ */
+
+.holo-war-room {
+  position: relative;
+  width: 100%;
+  border-radius: 18px;
+  background: radial-gradient(ellipse 90% 70% at 50% 40%, #06112a 0%, #030713 70%, #020409 100%);
+  border: 1px solid rgba(0, 240, 255, 0.28);
+  box-shadow: 0 0 50px rgba(0, 240, 255, 0.08), inset 0 0 40px rgba(6, 17, 42, 0.8);
+  overflow: hidden;
+  margin-bottom: 28px;
+  padding: 24px 20px 20px;
+}
+
+.holo-bg-overlay {
+  position: absolute;
+  inset: 0;
+  background-image: 
+    linear-gradient(rgba(0, 240, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 240, 255, 0.04) 1px, transparent 1px);
+  background-size: 36px 36px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.holo-perspective-grid {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 48%;
+  background: 
+    linear-gradient(to top, rgba(0, 240, 255, 0.12) 0%, transparent 100%),
+    repeating-linear-gradient(to top, rgba(0, 240, 255, 0.08) 0px, transparent 2px, transparent 20px);
+  transform: perspective(600px) rotateX(45deg);
+  transform-origin: bottom;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Header */
+.holo-header {
+  position: relative;
+  z-index: 10;
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.holo-header-title {
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0.25em;
+  color: #00f0ff;
+  text-shadow: 0 0 12px rgba(0, 240, 255, 0.6);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+.holo-header-sub {
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: 2px;
+  text-transform: uppercase;
+}
+
+.holo-live-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 3px 10px;
+  border-radius: 99px;
+  background: rgba(0, 240, 255, 0.08);
+  border: 1px solid rgba(0, 240, 255, 0.3);
+  font-size: 9px;
+  font-weight: 700;
+  color: #00f0ff;
+  letter-spacing: 0.12em;
+}
+
+.holo-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #00f0ff;
+  box-shadow: 0 0 8px #00f0ff;
+  animation: pulse-dot 1.4s ease-in-out infinite;
+}
+
+/* Stage */
+.holo-stage {
+  position: relative;
+  min-height: 480px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.holo-laser-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.laser-beam {
+  animation: laser-flow 2s linear infinite;
+}
+
+@keyframes laser-flow {
+  from { stroke-dashoffset: 20; }
+  to { stroke-dashoffset: 0; }
+}
+
+.pulse-photon {
+  animation: photon-travel 3s ease-in-out infinite;
+}
+
+.pulse-photon-reverse {
+  animation: photon-travel-reverse 3s ease-in-out infinite;
+}
+
+@keyframes photon-travel {
+  0% { transform: translate(-30px, -20px) scale(0.6); opacity: 0.2; }
+  50% { transform: translate(30px, 20px) scale(1.3); opacity: 1; }
+  100% { transform: translate(70px, 40px) scale(0.6); opacity: 0.2; }
+}
+
+@keyframes photon-travel-reverse {
+  0% { transform: translate(30px, -20px) scale(0.6); opacity: 0.2; }
+  50% { transform: translate(-30px, 20px) scale(1.3); opacity: 1; }
+  100% { transform: translate(-70px, 40px) scale(0.6); opacity: 0.2; }
+}
+
+/* Center Nexus */
+.holo-center-nexus {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 140px;
+  height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.nexus-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 1.5px dashed rgba(0, 240, 255, 0.4);
+}
+
+.nexus-ring.ring-3 {
+  width: 130px;
+  height: 130px;
+  animation: spin-clockwise 24s linear infinite;
+  border-color: rgba(0, 240, 255, 0.25);
+}
+
+.nexus-ring.ring-2 {
+  width: 96px;
+  height: 96px;
+  animation: spin-counter 16s linear infinite;
+  border: 1.5px solid rgba(56, 189, 248, 0.4);
+  border-top-color: transparent;
+  border-bottom-color: transparent;
+}
+
+.nexus-ring.ring-1 {
+  width: 64px;
+  height: 64px;
+  border: 2px solid rgba(0, 240, 255, 0.8);
+  box-shadow: 0 0 16px rgba(0, 240, 255, 0.6);
+  animation: pulse-ring 2.2s ease-in-out infinite;
+}
+
+.nexus-core-orb {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #00f0ff 0%, #0369a1 70%, #082f49 100%);
+  box-shadow: 0 0 24px #00f0ff, 0 0 48px rgba(0, 240, 255, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 14px;
+}
+
+.nexus-label {
+  position: absolute;
+  bottom: -22px;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: #00f0ff;
+  font-family: 'SF Mono', monospace;
+  text-shadow: 0 0 8px rgba(0, 240, 255, 0.8);
+}
+
+@keyframes spin-clockwise {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes spin-counter {
+  from { transform: rotate(360deg); }
+  to { transform: rotate(0deg); }
+}
+
+@keyframes pulse-ring {
+  0%, 100% { transform: scale(1); opacity: 0.7; }
+  50% { transform: scale(1.12); opacity: 1; }
+}
+
+/* Floating Laser Chips */
+.holo-chip {
+  position: absolute;
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border-radius: 6px;
+  background: rgba(6, 17, 42, 0.92);
+  border: 1px solid rgba(0, 240, 255, 0.5);
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.35);
+  color: #00f0ff;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-family: 'SF Mono', monospace;
+  backdrop-filter: blur(8px);
+  pointer-events: none;
+  animation: float-chip 3.5s ease-in-out infinite;
+}
+
+@keyframes float-chip {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+.chip-icon {
+  font-size: 10px;
+}
+
+/* Agent Pods */
+.holo-agent-pod {
+  position: absolute;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  width: 210px;
+}
+
+.holo-agent-pod.pod-top-left {
+  top: 18px;
+  left: 30px;
+}
+
+.holo-agent-pod.pod-top-right {
+  top: 18px;
+  right: 30px;
+}
+
+.holo-agent-pod.pod-bottom-left {
+  bottom: 24px;
+  left: 30px;
+}
+
+.holo-agent-pod.pod-bottom-right {
+  bottom: 24px;
+  right: 30px;
+}
+
+.holo-agent-pod:hover {
+  transform: translateY(-4px) scale(1.02);
+}
+
+.holo-ground-halo {
+  position: absolute;
+  bottom: 2px;
+  width: 100px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1.5px solid;
+  transform: rotateX(65deg);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.halo-spin-ring {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 1px dashed;
+  animation: spin-clockwise 14s linear infinite;
+}
+
+.holo-light-beam {
+  position: absolute;
+  bottom: 12px;
+  width: 50px;
+  height: 90px;
+  clip-path: polygon(25% 0%, 75% 0%, 100% 100%, 0% 100%);
+  pointer-events: none;
+  opacity: 0.6;
+  z-index: 2;
+}
+
+.holo-avatar-container {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #0b1a38 0%, #030816 100%);
+  border: 1.5px solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 3;
+  margin-bottom: 8px;
+}
+
+/* Robot Face Avatar */
+.holo-robot-head {
+  position: relative;
+  width: 34px;
+  height: 38px;
+  border-radius: 10px 10px 6px 6px;
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.robot-antenna {
+  position: absolute;
+  top: -5px;
+  width: 2px;
+  height: 5px;
+}
+
+.robot-visor {
+  width: 24px;
+  height: 9px;
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 3px;
+}
+
+.visor-scanline {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.8) 50%, transparent 100%);
+  animation: scanline-move 1.8s linear infinite;
+}
+
+@keyframes scanline-move {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+
+.robot-chassis {
+  width: 18px;
+  height: 6px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.robot-ear-ring {
+  position: absolute;
+  top: 12px;
+  width: 6px;
+  height: 14px;
+  border: 1px solid;
+  border-radius: 3px;
+}
+
+.robot-ear-ring.left { left: -7px; }
+.robot-ear-ring.right { right: -7px; }
+
+/* Hologram HUD Card */
+.holo-hud-card {
+  width: 100%;
+  background: rgba(6, 17, 42, 0.88);
+  border: 1px solid;
+  border-radius: 10px;
+  padding: 10px 12px;
+  backdrop-filter: blur(12px);
+  position: relative;
+  z-index: 4;
+}
+
+.hud-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.hud-card-title {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  font-family: 'SF Mono', monospace;
+}
+
+.hud-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 8px;
+}
+
+.hud-card-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: #cbd5e1;
+  line-height: 1.3;
+}
+
+.hud-check {
+  font-weight: 800;
+  font-size: 10px;
+}
+
+.hud-card-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.hud-tool-tag {
+  font-size: 8px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid;
+  font-family: 'SF Mono', monospace;
+}
+
+/* Lower Command Deck */
+.holo-command-deck {
+  position: relative;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+  margin-top: 12px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(0, 240, 255, 0.15);
+}
+
+.deck-card {
+  background: rgba(5, 12, 28, 0.85);
+  border: 1px solid rgba(0, 240, 255, 0.22);
+  border-radius: 10px;
+  padding: 12px 14px;
+  backdrop-filter: blur(10px);
+}
+
+.deck-title {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #00f0ff;
+  font-family: 'SF Mono', monospace;
+  margin-bottom: 8px;
+}
+
+.deck-waveform-container {
+  height: 38px;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 6px;
+  border: 1px solid rgba(0, 240, 255, 0.1);
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.deck-waveform {
+  width: 100%;
+  height: 100%;
+}
+
+.deck-metrics-row {
+  display: flex;
+  justify-content: space-between;
+}
+
+.deck-metric {
+  display: flex;
+  flex-direction: column;
+}
+
+.metric-val {
+  font-size: 12px;
+  font-weight: 800;
+  font-family: 'SF Mono', monospace;
+}
+
+.metric-lbl {
+  font-size: 8px;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+}
+
+/* Center Holographic Globe */
+.deck-card.deck-globe {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.holographic-globe {
+  position: relative;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(0, 240, 255, 0.5);
+  box-shadow: 0 0 16px rgba(0, 240, 255, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 6px;
+}
+
+.globe-ring.ring-a {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 1px dashed #38bdf8;
+  animation: spin-clockwise 8s linear infinite;
+}
+
+.globe-ring.ring-b {
+  position: absolute;
+  width: 70%;
+  height: 70%;
+  border-radius: 50%;
+  border: 1px solid rgba(129, 140, 248, 0.6);
+  animation: spin-counter 12s linear infinite;
+}
+
+.globe-coords {
+  position: absolute;
+  bottom: -16px;
+  display: flex;
+  gap: 8px;
+  font-size: 7px;
+  color: #00f0ff;
+  font-family: 'SF Mono', monospace;
+}
+
+.globe-caption {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: 14px;
+}
+
+/* Status Checklist */
+.status-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+.status-item.done {
+  color: #34d399;
+}
+
+.status-item.in-progress {
+  color: #00f0ff;
+  font-weight: 600;
+}
+
+.pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #00f0ff;
+  box-shadow: 0 0 8px #00f0ff;
+  animation: pulse-dot 1.2s infinite;
+}
+
+/* Bottom Inspector */
+.holo-agent-inspector {
+  position: relative;
+  z-index: 10;
+  margin-top: 14px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(0, 240, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.inspector-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.inspector-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.inspector-name {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  font-family: 'SF Mono', monospace;
+}
+
+.inspector-role {
+  font-size: 9px;
+  color: var(--text-muted);
+}
+
+.inspector-desc {
+  font-size: 11px;
+  color: #94a3b8;
+  max-width: 500px;
+  line-height: 1.4;
+}
+
+.inspector-badge {
+  font-size: 9px;
+  font-weight: 800;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: rgba(0, 240, 255, 0.1);
+  border: 1px solid rgba(0, 240, 255, 0.3);
+  color: #00f0ff;
+  font-family: 'SF Mono', monospace;
+  white-space: nowrap;
+}
+

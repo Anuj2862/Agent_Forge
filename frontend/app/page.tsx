@@ -1,4 +1,5 @@
 import TaskSubmitForm from "@/components/TaskSubmitForm";
+import HolographicWarRoom from "@/components/HolographicWarRoom";
 
 const PIPELINE_STEPS = [
   { num: 1, label: "Task\nInput",          status: "done" },
@@ -96,8 +97,13 @@ export default function Home() {
         </p>
       </div>
 
+      {/* ── Holographic Multi-Agent War Room (Inspired by theme) ─── */}
+      <div className="fade-up delay-1" style={{ marginBottom: 28 }}>
+        <HolographicWarRoom />
+      </div>
+
       {/* ── Task Input Form ───────────────────────────────────── */}
-      <div className="fade-up delay-1" style={{ marginBottom: 24 }}>
+      <div className="fade-up delay-2" style={{ marginBottom: 24 }}>
         <TaskSubmitForm />
       </div>
 
