@@ -5,10 +5,10 @@ export const API_BASE_URL =
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
-  headers: {
-    "Content-Type": "application/json",
-  },
+  headers: { "Content-Type": "application/json" },
 });
+
+/* ── Interfaces ─────────────────────────────────────────────────── */
 
 export interface AgentConfig {
   agent_id: string;
@@ -17,6 +17,8 @@ export interface AgentConfig {
   objective: string;
   system_prompt?: string;
   tools: string[];
+  inputs?: string[];
+  outputs?: string[];
 }
 
 export interface Connection {
@@ -31,6 +33,7 @@ export interface ArchitectureSpec {
   topology: string;
   agents: AgentConfig[];
   connections: Connection[];
+  meta_reasoning?: string;
 }
 
 export interface EvaluationMetrics {
@@ -73,6 +76,7 @@ export interface ToolCallLog {
   query?: string;
   output?: string;
   duration?: number;
+  latency_ms?: number;
 }
 
 export interface AgentLog {
@@ -118,49 +122,6 @@ export interface MemoryRecord {
   reflection_result?: any;
 }
 
-export async function submitTask(
-  user_prompt: string,
-  run_number: number = 1
-): Promise<TaskSubmitResponse> {
-  const response = await api.post<TaskSubmitResponse>("/tasks/submit", {
-    user_prompt,
-    run_number,
-  });
-  return response.data;
-}
-
-export async function runExecution(
-  task_id: string,
-  run_number: number = 1
-): Promise<any> {
-  const response = await api.post("/execution/run", {
-    task_id,
-    run_number,
-  });
-  return response.data;
-}
-
-export async function evaluateExecution(
-  execution_id: string,
-  task_id: string
-): Promise<any> {
-  const response = await api.post("/evaluation/evaluate", {
-    execution_id,
-    task_id,
-  });
-  return response.data;
-}
-
-export async function getMemoryHistory(
-  page: number = 1,
-  page_size: number = 20
-): Promise<{ records: MemoryRecord[]; total: number }> {
-  const response = await api.get("/memory/history", {
-    params: { page, page_size },
-  });
-  return response.data;
-}
-
 export interface EvolveArchitectureResponse {
   task_id: string;
   base_architecture_id: string;
@@ -194,16 +155,51 @@ export interface ArchitectureDiff {
 export interface TaskComparisonResponse {
   task_id: string;
   has_comparison: boolean;
-  run_1: {
-    evaluation: any;
-    architecture: ArchitectureSpec;
-  } | null;
-  run_2: {
-    evaluation: any;
-    architecture: ArchitectureSpec;
-  } | null;
+  run_1: { evaluation: any; architecture: ArchitectureSpec } | null;
+  run_2: { evaluation: any; architecture: ArchitectureSpec } | null;
   deltas: MetricDeltas | null;
   architecture_diff: ArchitectureDiff | null;
+}
+
+/* ── Task API ────────────────────────────────────────────────────── */
+
+export async function submitTask(
+  user_prompt: string,
+  run_number = 1
+): Promise<TaskSubmitResponse> {
+  const r = await api.post<TaskSubmitResponse>("/tasks/submit", { user_prompt, run_number });
+  return r.data;
+}
+
+export async function listTasks(): Promise<{ tasks: any[]; total: number }> {
+  const r = await api.get("/tasks/");
+  return r.data;
+}
+
+export async function getTask(task_id: string): Promise<any> {
+  const r = await api.get(`/tasks/${task_id}`);
+  return r.data;
+}
+
+/* ── Architecture API ────────────────────────────────────────────── */
+
+export async function listArchitectures(): Promise<{ architectures: any[] }> {
+  const r = await api.get("/architectures/");
+  return r.data;
+}
+
+export async function getArchitectureForTask(task_id: string): Promise<ArchitectureSpec> {
+  const r = await api.get(`/architectures/task/${task_id}`);
+  return r.data;
+}
+
+export async function getArchitectureVersions(task_id: string): Promise<{
+  task_id: string;
+  current_version: string;
+  versions: Record<string, ArchitectureSpec>;
+}> {
+  const r = await api.get(`/architectures/task/${task_id}/versions`);
+  return r.data;
 }
 
 export async function evolveArchitecture(
@@ -211,24 +207,99 @@ export async function evolveArchitecture(
   architecture_id?: string,
   reflection_id?: string
 ): Promise<EvolveArchitectureResponse> {
-  const response = await api.post<EvolveArchitectureResponse>("/architectures/evolve", {
+  const r = await api.post<EvolveArchitectureResponse>("/architectures/evolve", {
     task_id,
     architecture_id,
     reflection_id,
   });
-  return response.data;
+  return r.data;
 }
 
-export async function compareTaskRuns(
-  task_id: string
-): Promise<TaskComparisonResponse> {
-  const response = await api.get<TaskComparisonResponse>(`/evaluation/compare/${task_id}`);
-  return response.data;
+/* ── Execution API ───────────────────────────────────────────────── */
+
+export async function runExecution(task_id: string, run_number = 1): Promise<any> {
+  const r = await api.post("/execution/run", { task_id, run_number });
+  return r.data;
 }
 
-export async function getArchitectureVersions(
-  task_id: string
-): Promise<{ task_id: string; current_version: string; versions: Record<string, ArchitectureSpec> }> {
-  const response = await api.get(`/architectures/task/${task_id}/versions`);
-  return response.data;
+export async function listExecutions(): Promise<{ executions: any[]; total: number }> {
+  const r = await api.get("/execution/");
+  return r.data;
+}
+
+export async function getExecution(execution_id: string): Promise<any> {
+  const r = await api.get(`/execution/${execution_id}`);
+  return r.data;
+}
+
+/* ── Evaluation API ──────────────────────────────────────────────── */
+
+export async function evaluateExecution(execution_id: string, task_id: string): Promise<any> {
+  const r = await api.post("/evaluation/evaluate", { execution_id, task_id });
+  return r.data;
+}
+
+export async function listEvaluations(): Promise<{ evaluations: any[]; total: number }> {
+  const r = await api.get("/evaluation/");
+  return r.data;
+}
+
+export async function getEvaluation(evaluation_id: string): Promise<any> {
+  const r = await api.get(`/evaluation/${evaluation_id}`);
+  return r.data;
+}
+
+export async function compareTaskRuns(task_id: string): Promise<TaskComparisonResponse> {
+  const r = await api.get<TaskComparisonResponse>(`/evaluation/compare/${task_id}`);
+  return r.data;
+}
+
+/* ── Memory API ──────────────────────────────────────────────────── */
+
+export async function getMemoryHistory(
+  page = 1,
+  page_size = 20,
+  task_type?: string,
+  min_success_rating?: number
+): Promise<{ records: MemoryRecord[]; total: number; page: number; page_size: number }> {
+  const r = await api.get("/memory/history", {
+    params: { page, page_size, task_type, min_success_rating },
+  });
+  return r.data;
+}
+
+export async function retrieveSimilarExperiences(
+  task_type: string,
+  complexity = "medium",
+  limit = 3
+): Promise<{ query: any; count: number; experiences: any[] }> {
+  const r = await api.get("/memory/retrieve", {
+    params: { task_type, complexity, limit },
+  });
+  return r.data;
+}
+
+export async function getTaskEvolutionHistory(task_id: string): Promise<{
+  task_id: string;
+  run_count: number;
+  runs: any[];
+}> {
+  const r = await api.get(`/memory/task/${task_id}/history`);
+  return r.data;
+}
+
+export async function getMemoryStatus(): Promise<{
+  status: string;
+  module: string;
+  total_records: number;
+}> {
+  const r = await api.get("/memory/");
+  return r.data;
+}
+
+/* ── Health ──────────────────────────────────────────────────────── */
+
+export async function getHealth(): Promise<any> {
+  const r = await api.get("/health");
+  return r.data;
 }

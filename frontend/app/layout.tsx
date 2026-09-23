@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import NavBar from "@/components/NavBar";
+import SideBar from "@/components/SideBar";
+import TopHeader from "@/components/TopHeader";
 
 export const metadata: Metadata = {
   title: "Agent Forge — Autonomous Multi-Agent Evolution Platform",
@@ -17,11 +18,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <div className="bg-mesh" />
-        <div style={{ position: "relative", zIndex: 1 }}>
-          <NavBar />
-          <main style={{ minHeight: "calc(100vh - 60px)" }}>
-            {children}
-          </main>
+        <div className="app-shell" style={{ position: "relative", zIndex: 1 }}>
+          <SideBar />
+          <div className="app-content">
+            <TopHeader />
+            <main className="main-content">
+              {children}
+            </main>
+          </div>
         </div>
       </body>
     </html>
