@@ -86,15 +86,8 @@ const AGENTS: AgentDef[] = [
   },
 ];
 
-export default function HolographicWarRoom({
-  activeTask,
-  isExecuting = false,
-}: {
-  activeTask?: string;
-  isExecuting?: boolean;
-}) {
+export default function HolographicWarRoom() {
   const [selectedAgent, setSelectedAgent] = useState<AgentDef>(AGENTS[0]);
-  const [pulseActive, setPulseActive] = useState<boolean>(true);
   const [waveSeed, setWaveSeed] = useState<number>(0);
 
   // Animate waveform
@@ -127,9 +120,9 @@ export default function HolographicWarRoom({
         <div className="holo-header-sub">
           COLLABORATE · COORDINATE · ACHIEVE MISSION
         </div>
-        <div className="holo-live-tag">
-          <span className="holo-live-dot" />
-          <span>NEURAL NETWORK SYNCHRONIZED</span>
+        <div className="holo-live-tag" style={{ background: "rgba(124,58,237,0.2)", border: "1px solid rgba(124,58,237,0.4)" }}>
+          <span className="holo-live-dot" style={{ background: "#a78bfa" }} />
+          <span style={{ color: "#c4b5fd" }}>TOPOLOGY PREVIEW · SIMULATED ARCHITECTURE</span>
         </div>
       </div>
 

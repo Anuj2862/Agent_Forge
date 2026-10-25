@@ -5,7 +5,7 @@ Extended with persistence metadata for PostgreSQL storage and retrieval indexing
 
 from datetime import datetime
 from typing import Dict, Any, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from app.schemas.task import TaskSpec, TaskType, ComplexityLevel
 from app.schemas.architecture import ArchitectureSpec
 from app.schemas.evaluation import EvaluationResult
@@ -34,8 +34,8 @@ class EvolutionMemoryRecord(BaseModel):
         default=None, description="Short summary of top recommendation for display"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "record_id": "mem_001",
                 "run_number": 1,
@@ -49,6 +49,7 @@ class EvolutionMemoryRecord(BaseModel):
                 "recommendation_summary": "Add a Verification Agent between analysis and writing stages."
             }
         }
+    )
 
 
 class MemoryQueryResult(BaseModel):

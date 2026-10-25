@@ -143,14 +143,50 @@ class SimulatedMetaController:
     Uses Gemini API if GEMINI_API_KEY is set; otherwise uses template-based generation.
     """
 
-    async def process_task(self, user_prompt: str) -> tuple[TaskSpec, ArchitectureSpec]:
-        """Analyze prompt and return TaskSpec + ArchitectureSpec."""
+    async def process_task(
+        self,
+        user_prompt: str,
+        structured_constraints: Optional[dict] = None,
+    ) -> tuple[TaskSpec, ArchitectureSpec]:
+        """Analyze prompt and return TaskSpec + ArchitectureSpec honoring operational constraints."""
         task_id = f"task_{uuid.uuid4().hex[:10]}"
         task_type = _detect_task_type(user_prompt)
         complexity = _detect_complexity(user_prompt)
 
+        constraints_dict = structured_constraints or {}
+        max_agents = constraints_dict.get("max_agents")
+        forbidden_tools = set(constraints_dict.get("forbidden_tools") or [])
+        allowed_tools = set(constraints_dict.get("allowed_tools")) if constraints_dict.get("allowed_tools") else None
+        require_verification = constraints_dict.get("require_verification", False)
+
         # Build subtasks based on agent templates
-        agent_templates = _AGENT_TEMPLATES.get(task_type, _AGENT_TEMPLATES[TaskType.GENERAL])
+        raw_templates = _AGENT_TEMPLATES.get(task_type, _AGENT_TEMPLATES[TaskType.GENERAL])
+        agent_templates = []
+        for tmpl in raw_templates:
+            filtered_tools = [
+                t for t in tmpl.get("tools", [])
+                if t not in forbidden_tools and not any(fb in t for fb in forbidden_tools)
+            ]
+            if allowed_tools is not None:
+                filtered_tools = [t for t in filtered_tools if t in allowed_tools]
+            c_tmpl = dict(tmpl)
+            c_tmpl["tools"] = filtered_tools
+            agent_templates.append(c_tmpl)
+
+        if max_agents and len(agent_templates) > max_agents:
+            agent_templates = agent_templates[:max_agents]
+
+        if not agent_templates:
+            agent_templates = [{
+                "agent_id": "general_agent",
+                "name": "General Agent",
+                "role": "General Task Executor",
+                "objective": "Execute the task within operational constraints.",
+                "tools": [],
+                "input_keys": ["user_prompt"],
+                "output_keys": ["final_output"],
+            }]
+
         subtasks = [
             Subtask(
                 id=f"subtask_{i+1}",
@@ -165,6 +201,14 @@ class SimulatedMetaController:
         if not all_caps:
             all_caps = ["reasoning", "analysis"]
 
+        from app.schemas.task import TaskConstraints
+        task_constraints = TaskConstraints(
+            max_agents=max_agents,
+            forbidden_tools=list(forbidden_tools),
+            allowed_tools=list(allowed_tools) if allowed_tools else [],
+            require_verification=require_verification,
+        )
+
         task_spec = TaskSpec(
             task_id=task_id,
             user_prompt=user_prompt,
@@ -172,7 +216,11 @@ class SimulatedMetaController:
             complexity=complexity,
             subtasks=subtasks,
             required_capabilities=all_caps,
-            constraints=["Ensure factual accuracy", "Respect rate limits"],
+            constraints=task_constraints,
+            max_agents=max_agents,
+            forbidden_tools=list(forbidden_tools),
+            allowed_tools=list(allowed_tools) if allowed_tools else [],
+            require_verification=require_verification,
             expected_output_format="structured_markdown_report",
         )
 

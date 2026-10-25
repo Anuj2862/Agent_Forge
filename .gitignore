@@ -60,3 +60,5 @@ logs/
 # Database / SQLite local dev files
 *.sqlite3
 *.db
+stitch_export/
+

@@ -142,6 +142,7 @@ class ExecutionEngine:
             "error": None,
             "retry_count": int(input_data.get("retry_count", 0)),
             "metadata": dict(input_data.get("metadata", {})),
+            "emitter": input_data.get("emitter"),
         }
 
         # ---- Step 4: invoke() – LangGraph controls execution order/branching ----

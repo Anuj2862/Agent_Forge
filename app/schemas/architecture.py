@@ -4,14 +4,14 @@ Shared Pydantic Schemas for Architecture Synthesis & Agent Configuration.
 
 from enum import Enum
 from typing import List, Dict, Any, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class TopologyType(str, Enum):
     PIPELINE = "pipeline"
     PARALLEL = "parallel"
     HYBRID = "hybrid"
-    # Future topologies (Post Mid-Sem)
+    # Extended topologies
     DEBATE = "debate"
     TREE = "tree"
     BLACKBOARD = "blackboard"
@@ -38,6 +38,10 @@ class Connection(BaseModel):
 class ArchitectureSpec(BaseModel):
     architecture_id: str = Field(..., description="Unique architecture specification ID")
     task_id: str = Field(..., description="ID of the task this architecture was synthesized for")
+    version: str = Field(default="v1", description="Architecture evolution version tag (v1, v2, ...)")
+    parent_architecture_id: Optional[str] = Field(
+        default=None, description="Parent architecture ID if this is an evolved candidate"
+    )
     topology: TopologyType = Field(default=TopologyType.PIPELINE, description="Graph communication topology")
     agents: List[AgentConfigSchema] = Field(default_factory=list, description="Dynamic agents composition")
     connections: List[Connection] = Field(default_factory=list, description="Agent dependency edges")
@@ -45,11 +49,12 @@ class ArchitectureSpec(BaseModel):
         default=None, description="Explanation of why this architecture was synthesized"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "architecture_id": "arch_001",
                 "task_id": "task_001",
+                "version": "v1",
                 "topology": "pipeline",
                 "agents": [
                     {
@@ -61,12 +66,11 @@ class ArchitectureSpec(BaseModel):
                         "tools": ["web_search"],
                         "input_keys": ["task_prompt"],
                         "output_keys": ["raw_research"],
-                        "constraints": []
+                        "constraints": [],
                     }
                 ],
-                "connections": [
-                    {"source": "research_agent", "target": "analysis_agent"}
-                ],
-                "meta_reasoning": "Synthesized 3-agent pipeline for linear research and analysis workflow"
+                "connections": [{"source": "research_agent", "target": "analysis_agent"}],
+                "meta_reasoning": "Synthesized 2-agent pipeline for linear research and analysis workflow",
             }
         }
+    )

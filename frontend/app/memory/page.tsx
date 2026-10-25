@@ -8,13 +8,15 @@ import {
   getMemoryHistory,
   MemoryRecord,
 } from "@/lib/api";
+import KPICard from "@/components/KPICard";
 
 const TASK_TYPES = [
   { value: "research", label: "Research & Synthesis" },
-  { value: "code_generation", label: "Code Generation & Refactor" },
   { value: "data_analysis", label: "Data Analysis & Reasoning" },
-  { value: "multi_hop_qa", label: "Multi-Hop Q&A" },
-  { value: "creative_writing", label: "Creative & Copywriting" },
+  { value: "code_generation", label: "Code Generation & Refactor" },
+  { value: "content_creation", label: "Content Creation" },
+  { value: "problem_solving", label: "Problem Solving" },
+  { value: "general", label: "General Multi-Agent Task" },
 ];
 
 const COMPLEXITIES = [
@@ -24,10 +26,10 @@ const COMPLEXITIES = [
 ];
 
 export default function MemoryPage() {
-  const [status, setStatus] = useState<any>(null);
+  const [status, setStatus] = useState<{ status: string; module: string; total_records: number } | null>(null);
   const [selectedType, setSelectedType] = useState<string>("research");
   const [selectedComplexity, setSelectedComplexity] = useState<string>("low");
-  const [queryResults, setQueryResults] = useState<any[]>([]);
+  const [queryResults, setQueryResults] = useState<MemoryRecord[]>([]);
   const [recentRecords, setRecentRecords] = useState<MemoryRecord[]>([]);
   const [isQuerying, setIsQuerying] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
@@ -37,14 +39,14 @@ export default function MemoryPage() {
       try {
         setLoading(true);
         const [memStatus, historyData] = await Promise.all([
-          getMemoryStatus().catch(() => ({ status: "active", total_records: 1, module: "SQLite Memory Engine" })),
-          getMemoryHistory(1, 6).catch(() => ({ records: [], total: 0 })),
+          getMemoryStatus().catch(() => ({ status: "active", total_records: 0, module: "SQLite Memory Engine" })),
+          getMemoryHistory(1, 10).catch(() => ({ records: [], total: 0 })),
         ]);
         setStatus(memStatus);
         setRecentRecords(historyData.records || []);
 
         // Initial sample query
-        const initial = await retrieveSimilarExperiences("research", "low", 3);
+        const initial = await retrieveSimilarExperiences("research", "low", 4);
         setQueryResults(initial.experiences || []);
       } catch (err) {
         console.error("Failed to load memory data", err);
@@ -58,7 +60,7 @@ export default function MemoryPage() {
   const handleRetrieve = async () => {
     setIsQuerying(true);
     try {
-      const res = await retrieveSimilarExperiences(selectedType, selectedComplexity, 3);
+      const res = await retrieveSimilarExperiences(selectedType, selectedComplexity, 4);
       setQueryResults(res.experiences || []);
     } catch (err) {
       console.error("Retrieval failed", err);
@@ -69,237 +71,245 @@ export default function MemoryPage() {
 
   if (loading) {
     return (
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "50vh", gap: 16 }}>
-        <span className="spinner" style={{ width: 36, height: 36 }} />
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "50vh", gap: 14 }}>
+        <span className="spinner" style={{ width: 32, height: 32, borderWidth: 3 }} />
         <p style={{ color: "var(--text-muted)", fontSize: 13 }}>Connecting to SQLite Evolutionary Memory Store…</p>
       </div>
     );
   }
 
+  const totalCount = status?.total_records ?? recentRecords.length;
+
   return (
-    <div style={{ maxWidth: 1320, margin: "0 auto", padding: "24px 20px 80px" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {/* Header Banner */}
       <div
-        className="fade-up"
+        className="card fade-up"
         style={{
+          padding: "20px 24px",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
           flexWrap: "wrap",
           gap: 16,
-          marginBottom: 24,
-          padding: "20px 24px",
-          background: "var(--bg-card)",
-          borderRadius: 12,
-          border: "1px solid var(--border)",
         }}
       >
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ fontSize: 20 }}>🧠</span>
             <h1 style={{ fontSize: 18, fontWeight: 800 }}>Evolutionary Memory &amp; Experience Store</h1>
-            <span className="badge badge-emerald">Active Engine</span>
+            <span className="badge badge-emerald">SQLite Engine Active</span>
           </div>
           <p style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4 }}>
-            Persistent historical store of executed agent graphs, evaluation rubrics, and reflection lessons
+            Persistent historical repository of executed agent graphs, evaluation rubrics, and diagnostic reflection lessons
           </p>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Link href="/history" className="btn btn-secondary" style={{ fontSize: 12, padding: "7px 14px" }}>
-            View Full History Log →
+          <Link href="/history" className="btn btn-secondary btn-sm">
+            View All Experiments ({totalCount}) →
           </Link>
-          <Link href="/" className="btn btn-primary" style={{ fontSize: 12, padding: "7px 14px" }}>
-            + Synthesize New Architecture
+          <Link href="/" className="btn btn-primary btn-sm">
+            + New Task
           </Link>
         </div>
       </div>
 
-      {/* KPI Stats */}
-      <div
-        className="fade-up"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          gap: 16,
-          marginBottom: 24,
-        }}
-      >
-        <div className="card" style={{ padding: "18px 20px" }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase" }}>
-            Total Memory Records
-          </div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "#f1f5f9", marginTop: 4 }}>
-            {status?.total_records ?? recentRecords.length ?? 1} Experiences
-          </div>
-          <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
-            Indexed &amp; available for synthesis retrieval
-          </div>
-        </div>
+      {/* Translucent KPI Cards Row */}
+      <div className="fade-up delay-1">
+        <div className="kpi-grid">
+          <KPICard
+            label="Indexed Memory Records"
+            value={totalCount}
+            subtext="Available for synthesis retrieval"
+            accentColor="#10B981"
+            icon={
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <ellipse cx="12" cy="5" rx="9" ry="3" />
+                <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+              </svg>
+            }
+          />
 
-        <div className="card" style={{ padding: "18px 20px" }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase" }}>
-            Storage Architecture
-          </div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "#818cf8", marginTop: 4 }}>
-            SQLite + SQLAlchemy
-          </div>
-          <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
-            ACID persistent transaction log
-          </div>
-        </div>
+          <KPICard
+            label="Database Persistence"
+            value="SQLite ACID"
+            subtext="Survives restart & power loss"
+            accentColor="#3B82F6"
+            icon={
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <line x1="3" y1="9" x2="21" y2="9" />
+              </svg>
+            }
+          />
 
-        <div className="card" style={{ padding: "18px 20px" }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase" }}>
-            Retrieval Algorithm
-          </div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "#34d399", marginTop: 4 }}>
-            Multi-Attribute Filtering
-          </div>
-          <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
-            Ranked by weighted empirical success score
-          </div>
+          <KPICard
+            label="Retrieval Engine"
+            value="Tiered Match"
+            subtext="Type + Complexity heuristic"
+            accentColor="#22D3EE"
+            icon={
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+            }
+          />
         </div>
       </div>
 
       {/* Interactive Experience Retriever Sandbox */}
-      <div className="card fade-up" style={{ padding: "24px", marginBottom: 24 }}>
-        <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>
-          Interactive Memory Retrieval Sandbox
-        </h3>
-        <p style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 18 }}>
-          Test how the Meta Controller queries past successful architectures when designing a new agent team.
-        </p>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr auto",
-            gap: 16,
-            alignItems: "end",
-            padding: "16px",
-            background: "var(--bg-secondary)",
-            borderRadius: 10,
-            border: "1px solid var(--border-soft)",
-          }}
-        >
+      <div className="card fade-up">
+        <div className="card-header">
           <div>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 6 }}>
-              Task Type:
-            </label>
-            <select
-              value={selectedType}
-              onChange={(e) => setSelectedType(e.target.value)}
-              style={{
-                width: "100%",
-                background: "var(--bg-card)",
-                color: "#f1f5f9",
-                border: "1px solid var(--border)",
-                borderRadius: 6,
-                padding: "8px 12px",
-                fontSize: 13,
-              }}
-            >
-              {TASK_TYPES.map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
+            <div className="card-title">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              Memory Retrieval Simulator
+            </div>
+            <div className="card-subtitle">
+              Query historical experiences by task type and complexity to see what past architectures the Meta Controller surfaces
+            </div>
           </div>
-
-          <div>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 6 }}>
-              Complexity Level:
-            </label>
-            <select
-              value={selectedComplexity}
-              onChange={(e) => setSelectedComplexity(e.target.value)}
-              style={{
-                width: "100%",
-                background: "var(--bg-card)",
-                color: "#f1f5f9",
-                border: "1px solid var(--border)",
-                borderRadius: 6,
-                padding: "8px 12px",
-                fontSize: 13,
-              }}
-            >
-              {COMPLEXITIES.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <button
-            onClick={handleRetrieve}
-            disabled={isQuerying}
-            className="btn btn-primary"
-            style={{ padding: "8px 20px", height: 38 }}
-          >
-            {isQuerying ? (
-              <><span className="spinner" style={{ width: 14, height: 14 }} />Retrieving…</>
-            ) : (
-              "🔍 Query Memory"
-            )}
-          </button>
         </div>
 
-        {/* Query Results */}
-        <div style={{ marginTop: 24 }}>
-          <h4 style={{ fontSize: 13, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 14 }}>
-            Retrieved Past Experiences ({queryResults.length})
-          </h4>
+        <div style={{ padding: "20px" }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr auto",
+              gap: 16,
+              alignItems: "end",
+              padding: "16px",
+              background: "var(--bg-card-subtle)",
+              borderRadius: 8,
+              border: "1px solid var(--border-soft)",
+              marginBottom: 20,
+            }}
+          >
+            <div className="form-group">
+              <label className="form-label" htmlFor="mem-type-select">
+                Task Domain Type
+              </label>
+              <select
+                id="mem-type-select"
+                value={selectedType}
+                onChange={(e) => setSelectedType(e.target.value)}
+                className="form-control"
+              >
+                {TASK_TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          {queryResults.length > 0 ? (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 16 }}>
-              {queryResults.map((exp: any, idx: number) => (
-                <div
-                  key={exp.record_id || idx}
-                  style={{
-                    padding: "16px 18px",
-                    borderRadius: 10,
-                    background: "var(--bg-card)",
-                    border: "1px solid var(--border-soft)",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 10,
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span className="badge badge-violet" style={{ fontSize: 10 }}>
-                      {exp.task_type || selectedType}
-                    </span>
-                    <span className="badge badge-emerald" style={{ fontSize: 11, fontWeight: 700 }}>
-                      ★ {((exp.success_rating || 0.85) * 100).toFixed(0)}% Score
-                    </span>
-                  </div>
+            <div className="form-group">
+              <label className="form-label" htmlFor="mem-complexity-select">
+                Target Complexity
+              </label>
+              <select
+                id="mem-complexity-select"
+                value={selectedComplexity}
+                onChange={(e) => setSelectedComplexity(e.target.value)}
+                className="form-control"
+              >
+                {COMPLEXITIES.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "#f1f5f9", lineHeight: 1.4 }}>
-                    {exp.task_spec?.user_prompt || exp.user_prompt || "Market research and multi-agent plan synthesis"}
-                  </div>
+            <button
+              onClick={handleRetrieve}
+              disabled={isQuerying}
+              className="btn btn-primary"
+              style={{ height: 38 }}
+            >
+              {isQuerying ? (
+                <><span className="spinner" /> Querying…</>
+              ) : (
+                "Query Memory Store"
+              )}
+            </button>
+          </div>
 
-                  <div style={{ fontSize: 11, color: "var(--text-secondary)", display: "flex", gap: 14 }}>
-                    <span>Topology: <strong style={{ color: "#818cf8" }}>{exp.topology || "Parallel"}</strong></span>
-                    <span>Agents: <strong style={{ color: "#38bdf8" }}>{exp.agent_count || 3}</strong></span>
-                    <span>Run #{exp.run_number || 1}</span>
-                  </div>
+          {/* Query Results */}
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 12 }}>
+              Retrieved Architecture Experiences ({queryResults.length})
+            </div>
 
-                  {exp.recommendation_summary && (
-                    <div style={{ fontSize: 11, color: "#94a3b8", background: "rgba(0,0,0,0.2)", padding: "8px 10px", borderRadius: 6, fontStyle: "italic" }}>
-                      &ldquo;{exp.recommendation_summary}&rdquo;
+            {queryResults.length > 0 ? (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 14 }}>
+                {queryResults.map((exp: MemoryRecord, idx: number) => {
+                  const rating = exp.success_rating !== undefined ? (exp.success_rating * 100).toFixed(0) : "N/A";
+                  const prompt = exp.task_spec?.user_prompt || exp.user_prompt || "Multi-agent research task";
+
+                  return (
+                    <div
+                      key={exp.record_id || idx}
+                      style={{
+                        padding: "16px 18px",
+                        borderRadius: 8,
+                        background: "var(--bg-card-subtle)",
+                        border: "1px solid var(--border-soft)",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 10,
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span className="badge badge-indigo">
+                          {exp.task_type || selectedType}
+                        </span>
+                        <span className="badge badge-emerald">
+                          ★ {rating}% Success
+                        </span>
+                      </div>
+
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", lineHeight: 1.4 }}>
+                        &ldquo;{prompt}&rdquo;
+                      </div>
+
+                      <div style={{ fontSize: 11, color: "var(--text-secondary)", display: "flex", gap: 12 }}>
+                        <span>Topology: <strong style={{ color: "#818cf8" }}>{exp.topology || "Pipeline"}</strong></span>
+                        <span>Agents: <strong style={{ color: "#38bdf8" }}>{exp.agent_count || 1}</strong></span>
+                        <span>Run #{exp.run_number || 1}</span>
+                      </div>
+
+                      {exp.recommendation_summary && (
+                        <div style={{ fontSize: 11, color: "var(--text-muted)", background: "rgba(0,0,0,0.3)", padding: "8px 10px", borderRadius: 6, fontStyle: "italic" }}>
+                          &ldquo;{exp.recommendation_summary}&rdquo;
+                        </div>
+                      )}
+
+                      <div style={{ marginTop: "auto", paddingTop: 8, borderTop: "1px solid var(--border-soft)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <code style={{ fontSize: 10, color: "var(--text-muted)" }}>
+                          {exp.record_id}
+                        </code>
+                        {exp.task_id && (
+                          <Link href={`/run/${exp.task_id}`} style={{ fontSize: 11, color: "var(--indigo)", textDecoration: "none", fontWeight: 600 }}>
+                            Inspect Run →
+                          </Link>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div style={{ textAlign: "center", padding: "30px", color: "var(--text-muted)", fontSize: 13 }}>
-              No exact match for this combination in memory yet. Submit a task with this complexity to add it to the memory bank.
-            </div>
-          )}
+                  );
+                })}
+              </div>
+            ) : (
+              <div style={{ textAlign: "center", padding: "36px", color: "var(--text-muted)", fontSize: 13 }}>
+                No prior experiences indexed for domain &ldquo;{selectedType}&rdquo; with &ldquo;{selectedComplexity}&rdquo; complexity. New syntheses will bootstrap from base templates.
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

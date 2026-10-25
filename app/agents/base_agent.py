@@ -8,6 +8,7 @@ import time
 from typing import Any, Callable, Dict, List, Optional
 from app.core.config import settings
 from app.schemas.architecture import AgentConfigSchema
+from app.schemas.execution_event import ExecutionEventType, ExecutionStage
 
 
 class BaseAgent:
@@ -72,12 +73,13 @@ class BaseAgent:
 
         return self._default_mock_llm(prompt, state)
 
-    async def execute(self, state: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, state: Dict[str, Any], emitter: Optional[Any] = None) -> Dict[str, Any]:
         """
         Executes the agent logic asynchronously over the provided state context.
 
         Args:
             state: Dictionary containing execution state and context.
+            emitter: Optional ExecutionEventEmitter for live streaming telemetry.
 
         Returns:
             Dict containing step execution summary, output, tool calls, and state updates.
@@ -86,6 +88,26 @@ class BaseAgent:
         tool_call_logs: List[Dict[str, Any]] = []
         error_msg: Optional[str] = None
         status = "completed"
+
+        active_emitter = emitter or state.get("emitter")
+
+        # Emit agent.started event if emitter is active
+        if active_emitter:
+            try:
+                active_emitter.emit_sync(
+                    event_type=ExecutionEventType.AGENT_STARTED,
+                    message=f"Agent '{self.name}' ({self.role}) initialized and running",
+                    stage=ExecutionStage.AGENT_EXECUTION.value,
+                    agent_id=self.agent_id,
+                    data={
+                        "name": self.name,
+                        "role": self.role,
+                        "objective": self.objective,
+                        "tools": self.tool_names,
+                    },
+                )
+            except Exception:
+                pass
 
         # 1. Extract prompt input based on input_keys or default prompt keys
         user_prompt = state.get("user_prompt") or state.get("task_prompt") or ""
@@ -98,35 +120,127 @@ class BaseAgent:
         if input_context_parts:
             combined_input += "\nContext:\n" + "\n".join(input_context_parts)
 
-        # 2. Execute tools if injected
-        for tool_func in self.tools:
-            tool_name = getattr(tool_func, "__name__", str(tool_func))
-            try:
-                if tool_name == "web_search_tool" or "search" in tool_name:
-                    tool_res = tool_func(query=user_prompt or "general query")
-                elif tool_name == "python_interpreter_tool" or "python" in tool_name:
-                    code_snippet = state.get("code") or "print('executing python tool')"
-                    tool_res = tool_func(code=code_snippet)
-                else:
-                    tool_res = tool_func(user_prompt)
+        # 2. Intentional Tool Execution
+        # Only invoke tools that match the agent's specific objective and are permitted by constraints
+        forbidden_in_constraints = {
+            c.lower().replace("forbidden_tool:", "").strip()
+            for c in self.constraints
+            if "forbidden" in c.lower()
+        }
 
-                tool_call_logs.append(
-                    {
-                        "tool": tool_name,
-                        "input": user_prompt,
-                        "result": tool_res,
-                        "status": "success",
-                    }
-                )
-            except Exception as te:
-                tool_call_logs.append(
-                    {
-                        "tool": tool_name,
-                        "input": user_prompt,
-                        "error": str(te),
-                        "status": "error",
-                    }
-                )
+        for tool_func in self.tools:
+            tool_name = getattr(tool_func, "__name__", str(tool_func)).lower()
+
+            # Constraint check
+            if any(fb in tool_name for fb in forbidden_in_constraints):
+                continue
+
+            # Intentionality check: does the agent role/objective actually warrant this tool?
+            role_obj_text = f"{self.role} {self.objective} {self.name}".lower()
+            is_relevant = False
+            if "search" in tool_name or "web" in tool_name:
+                is_relevant = any(kw in role_obj_text for kw in ["search", "retriev", "gather", "research", "investigat", "find", "ev claims"])
+            elif "python" in tool_name or "interpret" in tool_name:
+                is_relevant = any(kw in role_obj_text for kw in ["python", "code", "calculat", "math", "comput", "data", "script"])
+            elif "document" in tool_name or "retriev" in tool_name:
+                is_relevant = any(kw in role_obj_text for kw in ["document", "doc", "paper", "text", "file", "retriev"])
+            else:
+                is_relevant = True
+
+            # If tool is explicitly assigned to this agent and relevant:
+            if is_relevant:
+                tool_start = time.time()
+                tool_input = user_prompt
+                if "search" in tool_name or "web" in tool_name:
+                    tool_input = self.objective if self.objective else user_prompt
+                elif "python" in tool_name or "interpret" in tool_name:
+                    tool_input = state.get("code") or (
+                        f"# Script for {self.role}\nresult = '{self.objective[:50]} processed'"
+                    )
+
+                if active_emitter:
+                    try:
+                        active_emitter.emit_sync(
+                            event_type=ExecutionEventType.TOOL_STARTED,
+                            message=f"Invoking tool '{tool_name}'",
+                            stage=ExecutionStage.AGENT_EXECUTION.value,
+                            agent_id=self.agent_id,
+                            data={"tool": tool_name, "input_preview": str(tool_input)[:200]},
+                        )
+                    except Exception:
+                        pass
+
+                try:
+                    if "search" in tool_name or "web" in tool_name:
+                        tool_res = tool_func(query=tool_input)
+                    elif "python" in tool_name or "interpret" in tool_name:
+                        tool_res = tool_func(code=tool_input)
+                    else:
+                        tool_res = tool_func(tool_input)
+
+                    tool_duration = round(time.time() - tool_start, 4)
+                    tool_status = "success"
+                    if isinstance(tool_res, dict) and tool_res.get("status") in ("error", "unavailable"):
+                        tool_status = tool_res.get("status")
+
+                    tool_call_logs.append(
+                        {
+                            "tool": tool_name,
+                            "input": str(tool_input)[:200],
+                            "result": tool_res,
+                            "status": tool_status,
+                            "duration_seconds": tool_duration,
+                        }
+                    )
+
+                    if active_emitter:
+                        try:
+                            if tool_status == "error":
+                                active_emitter.emit_sync(
+                                    event_type=ExecutionEventType.TOOL_FAILED,
+                                    message=f"Tool '{tool_name}' failed or was unavailable",
+                                    stage=ExecutionStage.AGENT_EXECUTION.value,
+                                    agent_id=self.agent_id,
+                                    data={"tool": tool_name, "duration_seconds": tool_duration},
+                                    error=str(tool_res.get("error", "tool failed")),
+                                )
+                            else:
+                                active_emitter.emit_sync(
+                                    event_type=ExecutionEventType.TOOL_COMPLETED,
+                                    message=f"Tool '{tool_name}' completed in {tool_duration}s",
+                                    stage=ExecutionStage.AGENT_EXECUTION.value,
+                                    agent_id=self.agent_id,
+                                    data={
+                                        "tool": tool_name,
+                                        "duration_seconds": tool_duration,
+                                        "output_preview": str(tool_res)[:200],
+                                    },
+                                )
+                        except Exception:
+                            pass
+                except Exception as te:
+                    tool_duration = round(time.time() - tool_start, 4)
+                    tool_call_logs.append(
+                        {
+                            "tool": tool_name,
+                            "input": str(tool_input)[:200],
+                            "error": str(te),
+                            "status": "error",
+                            "duration_seconds": tool_duration,
+                        }
+                    )
+                    if active_emitter:
+                        try:
+                            active_emitter.emit_sync(
+                                event_type=ExecutionEventType.TOOL_FAILED,
+                                message=f"Tool '{tool_name}' raised an unhandled exception",
+                                stage=ExecutionStage.AGENT_EXECUTION.value,
+                                agent_id=self.agent_id,
+                                data={"tool": tool_name, "duration_seconds": tool_duration},
+                                error=str(te),
+                            )
+                        except Exception:
+                            pass
 
         # 3. Invoke LLM for output generation
         try:
@@ -150,6 +264,24 @@ class BaseAgent:
         agent_outputs[self.agent_id] = llm_output
         updated_state["agent_outputs"] = agent_outputs
         updated_state["final_output"] = llm_output
+
+        # Emit agent.completed event
+        if active_emitter:
+            try:
+                active_emitter.emit_sync(
+                    event_type=ExecutionEventType.AGENT_COMPLETED,
+                    message=f"Agent '{self.name}' completed execution in {execution_duration}s",
+                    stage=ExecutionStage.AGENT_EXECUTION.value,
+                    agent_id=self.agent_id,
+                    data={
+                        "status": status,
+                        "duration_seconds": execution_duration,
+                        "tool_call_count": len(tool_call_logs),
+                        "output_preview": llm_output[:300],
+                    },
+                )
+            except Exception:
+                pass
 
         return {
             "agent_id": self.agent_id,

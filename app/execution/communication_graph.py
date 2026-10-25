@@ -80,6 +80,7 @@ class LangGraphState(TypedDict, total=False):
     error: Annotated[Optional[str], _merge_errors]
     retry_count: Annotated[int, _sum_ints]
     metadata: Dict[str, Any]
+    emitter: Annotated[Optional[Any], _last_wins]
 
 
 # ---------------------------------------------------------------------------

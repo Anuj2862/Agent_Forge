@@ -42,7 +42,16 @@ class ImprovementGenerator:
             insert_after = None
             insert_before = None
 
+            domain_hint = "general"
             if architecture and architecture.agents:
+                all_text = " ".join(
+                    f"{a.role} {a.objective} {a.agent_id}" for a in architecture.agents
+                ).lower()
+                if any(w in all_text for w in ["code", "python", "script", "program", "developer"]):
+                    domain_hint = "code"
+                elif any(w in all_text for w in ["data", "sales", "metric", "financial", "numerical"]):
+                    domain_hint = "data"
+
                 # Place after research or analysis, before writer or aggregator
                 agent_ids = [a.agent_id for a in architecture.agents]
                 for aid in agent_ids:
@@ -57,17 +66,41 @@ class ImprovementGenerator:
                 if not insert_before and len(agent_ids) > 1:
                     insert_before = agent_ids[-1]
 
+            if domain_hint == "code":
+                agent_name = "Code Integrity Verification Specialist"
+                agent_role = "Code Verification Specialist"
+                agent_obj = "Audit generated source code, verify edge case handling, and validate execution requirements."
+                system_prompt = (
+                    "You are a rigorous Code Verification Specialist. Scrutinize all incoming code artifacts, "
+                    "check syntax and algorithm correctness, identify potential runtime regressions, "
+                    "and ensure adherence to operational specifications before passing output downstream."
+                )
+            elif domain_hint == "data":
+                agent_name = "Quantitative Integrity Verification Specialist"
+                agent_role = "Data Verification Specialist"
+                agent_obj = "Cross-examine numerical data, check statistical consistency, and ensure verified computations."
+                system_prompt = (
+                    "You are a Quantitative Data Verification Specialist. Verify all statistical claims, "
+                    "cross-check numerical calculations against raw inputs, eliminate contradictory numbers, "
+                    "and certify data integrity."
+                )
+            else:
+                agent_name = "Fact Verification Specialist"
+                agent_role = "Factual Verification Specialist"
+                agent_obj = "Cross-reference claims against gathered research data, verify factual assertions, and eliminate contradictions."
+                system_prompt = (
+                    "You are a rigorous Fact Verification Agent. Inspect incoming findings, "
+                    "validate claims with source evidence, mark verified assertions, and filter unsupported claims."
+                )
+
             return ArchitecturalRecommendation(
                 action="ADD_AGENT",
                 details={
                     "agent_id": "fact_verification_agent",
-                    "name": "Fact Verification Agent",
-                    "role": "Factual Verification Specialist",
-                    "objective": "Cross-reference claims against gathered research data, verify factual assertions, and eliminate contradictions.",
-                    "system_prompt": (
-                        "You are a rigorous Fact Verification Agent. Inspect incoming findings, "
-                        "validate claims with source evidence, mark verified assertions, and filter unsupported claims."
-                    ),
+                    "name": agent_name,
+                    "role": agent_role,
+                    "objective": agent_obj,
+                    "system_prompt": system_prompt,
                     "tools": ["web_search"],
                     "input_keys": ["raw_research"],
                     "output_keys": ["verified_findings"],
@@ -76,7 +109,7 @@ class ImprovementGenerator:
                     "insert_before": insert_before or "writer_agent",
                 },
                 priority="high",
-                reason="Absence of independent verification stage caused low accuracy and unverified claims.",
+                reason=f"Absence of independent verification stage caused unverified claims. Synthesizing specialized {agent_role} to ensure grounded outputs.",
                 expected_benefit="Substantially increases accuracy, validates assertions, and ensures verified output.",
             )
 
@@ -143,14 +176,27 @@ class ImprovementGenerator:
 
         # 5. Incomplete Task Coverage -> ADD_AGENT (Specialist Agent)
         elif issue.category == IssueCategory.INCOMPLETE_TASK_COVERAGE:
+            specialist_role = "Deep Domain Analyst"
+            specialist_name = "Analysis Specialist Agent"
+            desc_lower = issue.description.lower()
+            if "market" in desc_lower or "industry" in desc_lower:
+                specialist_role = "Market Intelligence Specialist"
+                specialist_name = "Market Intelligence Agent"
+            elif "security" in desc_lower or "vulnerability" in desc_lower:
+                specialist_role = "Security Audit Specialist"
+                specialist_name = "Security Audit Agent"
+
             return ArchitecturalRecommendation(
                 action="ADD_AGENT",
                 details={
                     "agent_id": "analysis_specialist_agent",
-                    "name": "Analysis Specialist Agent",
-                    "role": "Deep Domain Analyst",
+                    "name": specialist_name,
+                    "role": specialist_role,
                     "objective": "Perform detailed structured analysis on gathered data to satisfy all subtask requirements.",
-                    "system_prompt": "You are a Domain Analyst. Examine raw data, extract insights, and format structured analytical findings.",
+                    "system_prompt": (
+                        f"You are the {specialist_name}. Examine raw findings in depth, extract key structural insights, "
+                        "address specific uncovered task deliverables, and formulate structured analytical findings."
+                    ),
                     "tools": [],
                     "input_keys": ["raw_research"],
                     "output_keys": ["analysis_data"],
@@ -179,15 +225,32 @@ class ImprovementGenerator:
         # 7. Agent Reasoning Failure -> REPLACE_AGENT
         elif issue.category == IssueCategory.AGENT_REASONING_FAILURE:
             target_agent = issue.affected_agent_id
+            existing_agent = None
+            if architecture and architecture.agents:
+                for a in architecture.agents:
+                    if a.agent_id == target_agent:
+                        existing_agent = a
+                        break
+
+            role_label = existing_agent.role if existing_agent else "Specialist Agent"
+            mutated_prompt = (
+                f"You are an evolved {role_label} operating under elevated reasoning and zero-defect guidelines.\n"
+                "Enhanced Execution Protocol: Follow an explicit chain-of-thought scratchpad before emitting output. "
+                "Step 1: Parse input requirements and identify implicit assumptions.\n"
+                "Step 2: Cross-check intermediate deductions against supplied evidence.\n"
+                "Step 3: Self-correct any discrepancies or formatting flaws.\n"
+                "Step 4: Emit high-confidence, well-structured final output."
+            )
+
             return ArchitecturalRecommendation(
                 action="CHANGE_AGENT_ROLE",
                 details={
                     "target_agent_id": target_agent,
-                    "updated_system_prompt": "Follow step-by-step chain of thought. Double-check all intermediate steps before producing output.",
+                    "updated_system_prompt": mutated_prompt,
                 },
                 priority="high",
-                reason=f"Agent '{target_agent}' failed execution; upgrading prompts and constraints.",
-                expected_benefit="Mitigates execution errors through robust step-by-step reasoning prompts.",
+                reason=f"Agent '{target_agent}' failed execution; evolving system prompt with chain-of-thought verification protocol.",
+                expected_benefit="Mitigates execution errors through robust step-by-step reasoning prompts and self-correction.",
             )
 
         return None

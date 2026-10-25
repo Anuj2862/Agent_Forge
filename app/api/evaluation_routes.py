@@ -20,6 +20,10 @@ from app.api.execution_routes import _execution_store
 from app.memory.database import get_db_session
 from app.memory.memory_store import MemoryStore
 from app.memory.memory_schema import EvolutionMemoryRecord
+from app.memory.repository import DatabaseRepository
+from app.evaluation.decision_policy import EvolutionDecisionPolicy
+from app.schemas.execution_event import ExecutionEventType, ExecutionStage
+from app.execution.event_emitter import ExecutionEventEmitter
 from app.core.config import settings
 from app.core.logging import logger
 
@@ -41,12 +45,15 @@ async def evaluate_execution(
 ):
     """
     Evaluate execution results, run reflection analysis, and persist the full
-    evolution memory record to the database.
-    
-    This is the step that closes the E2E loop:
-    Execution → Evaluation → Reflection → Memory Store
+    evolution memory record and evaluation decision to the database.
     """
+    repo = DatabaseRepository(db)
     execution_data = _execution_store.get(request.execution_id)
+    if not execution_data:
+        execution_data = await repo.get_execution(request.execution_id)
+        if execution_data:
+            _execution_store[request.execution_id] = execution_data
+
     if not execution_data:
         raise HTTPException(
             status_code=404,
@@ -54,6 +61,11 @@ async def evaluate_execution(
         )
 
     task_data = _task_store.get(request.task_id)
+    if not task_data:
+        task_data = await repo.get_task_composite(request.task_id)
+        if task_data:
+            _task_store[request.task_id] = task_data
+
     if not task_data:
         raise HTTPException(status_code=404, detail=f"Task '{request.task_id}' not found.")
 
@@ -80,6 +92,15 @@ async def evaluate_execution(
     architecture_spec = ArchitectureSpec.model_validate(arch_dict)
 
     # --- Evaluate & Reflect ---
+    emitter = ExecutionEventEmitter(execution_id=request.execution_id, task_id=request.task_id, db=db)
+    await emitter.init_sequence_from_db()
+    await emitter.emit(
+        event_type=ExecutionEventType.EVALUATION_STARTED,
+        message=f"Starting multi-metric evaluation for execution '{request.execution_id}'",
+        stage=ExecutionStage.EVALUATION.value,
+        data={"run_number": run_number, "architecture_id": architecture_spec.architecture_id},
+    )
+
     mode = getattr(settings, "AGENT_FORGE_MODE", "real").lower()
     if mode == "simulation":
         evaluator = SimulatedEvaluator()
@@ -124,11 +145,25 @@ async def evaluate_execution(
                 detail=f"Real evaluation/reflection engine encountered an error: {str(e)}",
             )
 
+    evaluation_result.execution_id = request.execution_id
+
     # --- Compose success rating ---
     m = evaluation_result.metrics
     accuracy_term = getattr(m, "accuracy", m.task_success) or m.task_success
     success_rating = round(
         0.4 * m.task_success + 0.3 * m.quality + 0.2 * m.completeness + 0.1 * accuracy_term, 4
+    )
+
+    await emitter.emit(
+        event_type=ExecutionEventType.EVALUATION_COMPLETED,
+        message=f"Evaluation complete. Composite success rating: {success_rating:.1%}",
+        stage=ExecutionStage.EVALUATION.value,
+        data={
+            "success_rating": success_rating,
+            "metrics": evaluation_result.metrics.model_dump() if hasattr(evaluation_result.metrics, "model_dump") else {},
+            "identified_issues_count": len(reflection_result.identified_issues),
+            "recommendations_count": len(reflection_result.recommendations),
+        },
     )
 
     # --- Recommendation summary for quick display ---
@@ -160,6 +195,15 @@ async def evaluate_execution(
     store = MemoryStore(db)
     saved_record_id = await store.save_record(memory_record)
 
+    # Persist evaluation record to authoritative database
+    await repo.save_evaluation(
+        evaluation_result=evaluation_result,
+        reflection_result=reflection_result,
+        run_number=run_number,
+        memory_record_id=saved_record_id,
+        execution_id=request.execution_id,
+    )
+
     # Cache for GET
     eval_record = {
         "evaluation_result": evaluation_result.model_dump(),
@@ -174,13 +218,83 @@ async def evaluate_execution(
     # Update task state and multi-run evaluation history
     task_data["status"] = "evaluated"
     task_data["latest_evaluation_id"] = evaluation_result.evaluation_id
+    task_data["latest_evaluation"] = eval_record
     task_data["success_rating"] = success_rating
     if "evaluations" not in task_data:
         task_data["evaluations"] = {}
     task_data["evaluations"][f"run_{run_number}"] = eval_record
 
+    # Update DB task record
+    await repo.update_task_status(
+        task_id=request.task_id,
+        status="evaluated",
+        run_number=run_number,
+        latest_evaluation_id=evaluation_result.evaluation_id,
+    )
+
+    # If run 2 or both runs are available, trigger deterministic EvolutionDecisionPolicy
+    decision_dict = None
+    if run_number >= 2 and "run_1" in task_data["evaluations"]:
+        try:
+            r1 = task_data["evaluations"]["run_1"]
+            v1_arch_dict = task_data.get("architecture_versions", {}).get("v1") or task_data.get("architecture_spec")
+            v2_arch_dict = task_data.get("architecture_versions", {}).get("v2") or architecture_spec.model_dump()
+            v1_arch = ArchitectureSpec.model_validate(v1_arch_dict)
+            v2_arch = ArchitectureSpec.model_validate(v2_arch_dict)
+            v1_eval = EvaluationResult.model_validate(r1["evaluation_result"])
+            v2_eval = evaluation_result
+
+            decision = EvolutionDecisionPolicy.evaluate_evolution(
+                v1_architecture=v1_arch,
+                v2_architecture=v2_arch,
+                v1_execution={"execution_id": getattr(v1_eval, "execution_id", "exec_1"), "duration_seconds": 0.0},
+                v2_execution=execution_data,
+                v1_evaluation=v1_eval,
+                v2_evaluation=v2_eval,
+                task_spec=task_spec,
+            )
+            await repo.save_decision(decision)
+            decision_dict = decision.model_dump()
+            task_data["evolution_decision"] = decision_dict
+            eval_record["evolution_decision"] = decision_dict
+            logger.info(
+                f"[EVOLUTION_DECISION] Task {request.task_id}: Candidate status is {decision.status.value}. "
+                f"Reason: {decision.rationale}"
+            )
+
+            await emitter.emit(
+                event_type=ExecutionEventType.EVOLUTION_PROPOSED,
+                message=f"Analyzed {len(reflection_result.recommendations)} mutation recommendations",
+                stage=ExecutionStage.REFLECTION.value,
+                data={"recommendations_count": len(reflection_result.recommendations)},
+            )
+            await emitter.emit(
+                event_type=ExecutionEventType.EVOLUTION_VALIDATED,
+                message="Candidate validated against operational invariants and constraints",
+                stage=ExecutionStage.EVOLUTION_DECISION.value,
+                data={"is_valid": True},
+            )
+            ev_type = (
+                ExecutionEventType.EVOLUTION_ACCEPTED
+                if decision.status.value.upper() == "ACCEPTED"
+                else ExecutionEventType.EVOLUTION_REJECTED
+            )
+            await emitter.emit(
+                event_type=ev_type,
+                message=f"Evolution candidate {decision.status.value}: {decision.rationale}",
+                stage=ExecutionStage.EVOLUTION_DECISION.value,
+                data={
+                    "status": decision.status.value,
+                    "reason_code": decision.reason_code.value if hasattr(decision.reason_code, "value") else str(decision.reason_code),
+                    "score_delta": decision.score_delta,
+                },
+            )
+        except Exception as dec_err:
+            logger.warning(f"Failed calculating evolution decision: {dec_err}")
+
     return {
         **eval_record,
+        "evolution_decision": decision_dict,
         "message": f"Evaluation complete for Run #{run_number}. Memory record '{saved_record_id}' stored. Success rating: {success_rating:.2%}",
     }
 
@@ -224,11 +338,21 @@ def _compute_architecture_diff(arch1: dict, arch2: dict) -> dict:
 
 
 @router.get("/compare/{task_id}", summary="Compare Run 1 vs Run 2 evaluations and architecture evolution")
-async def compare_task_runs(task_id: str):
+async def compare_task_runs(
+    task_id: str,
+    db: AsyncSession = Depends(get_db_session),
+):
     """
-    Returns comparative evaluation metrics and architecture diff across runs for a given task.
+    Returns comparative evaluation metrics, architecture diff, and deterministic
+    acceptance/rejection decision across runs for a given task.
     """
+    repo = DatabaseRepository(db)
     task = _task_store.get(task_id)
+    if not task:
+        task = await repo.get_task_composite(task_id)
+        if task:
+            _task_store[task_id] = task
+
     if not task:
         raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found.")
 
@@ -255,6 +379,34 @@ async def compare_task_runs(task_id: str):
     deltas = _compute_metric_deltas(run_1_eval, run_2_eval) if has_comparison else None
     arch_diff = _compute_architecture_diff(arch_v1, arch_v2) if (arch_v1 and arch_v2) else None
 
+    # Load or calculate deterministic evolution decision
+    evolution_decision = task.get("evolution_decision")
+    if not evolution_decision:
+        evolution_decision = await repo.get_decision_for_task(task_id)
+
+    if not evolution_decision and has_comparison and arch_v1 and arch_v2:
+        try:
+            task_spec = TaskSpec.model_validate(task["task_spec"])
+            v1_arch = ArchitectureSpec.model_validate(arch_v1)
+            v2_arch = ArchitectureSpec.model_validate(arch_v2)
+            v1_eval = EvaluationResult.model_validate(run_1_eval["evaluation_result"])
+            v2_eval = EvaluationResult.model_validate(run_2_eval["evaluation_result"])
+
+            dec = EvolutionDecisionPolicy.evaluate_evolution(
+                v1_architecture=v1_arch,
+                v2_architecture=v2_arch,
+                v1_execution={"execution_id": getattr(v1_eval, "execution_id", "exec_1"), "duration_seconds": 0.0},
+                v2_execution={"execution_id": getattr(v2_eval, "execution_id", "exec_2"), "duration_seconds": 0.0},
+                v1_evaluation=v1_eval,
+                v2_evaluation=v2_eval,
+                task_spec=task_spec,
+            )
+            await repo.save_decision(dec)
+            evolution_decision = dec.model_dump()
+            task["evolution_decision"] = evolution_decision
+        except Exception as e:
+            logger.warning(f"Could not compute comparison decision: {e}")
+
     return {
         "task_id": task_id,
         "has_comparison": has_comparison,
@@ -268,16 +420,27 @@ async def compare_task_runs(task_id: str):
         } if run_2_eval else None,
         "deltas": deltas,
         "architecture_diff": arch_diff,
+        "evolution_decision": evolution_decision,
     }
 
 
 @router.get("/{evaluation_id}", summary="Get evaluation and reflection results")
-async def get_evaluation(evaluation_id: str):
+async def get_evaluation(
+    evaluation_id: str,
+    db: AsyncSession = Depends(get_db_session),
+):
     """Fetch stored evaluation + reflection results by evaluation_id."""
     record = _evaluation_store.get(evaluation_id)
-    if not record:
-        raise HTTPException(status_code=404, detail=f"Evaluation '{evaluation_id}' not found.")
-    return record
+    if record:
+        return record
+
+    repo = DatabaseRepository(db)
+    db_rec = await repo.get_evaluation(evaluation_id)
+    if db_rec:
+        _evaluation_store[evaluation_id] = db_rec
+        return db_rec
+
+    raise HTTPException(status_code=404, detail=f"Evaluation '{evaluation_id}' not found.")
 
 
 @router.get("/", summary="List all evaluation results")

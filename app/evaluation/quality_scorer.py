@@ -57,20 +57,24 @@ class QualityScorer:
         # 3. Clarity & Readability
         clarity_score = self._compute_clarity(clean_text)
 
-        # 4. Usefulness & Substance
+        # 4. Usefulness & Substance (with lexical diversity check)
         usefulness_score = self._compute_usefulness(clean_text)
 
         # 5. Consistency & Error Absence
         consistency_score = self._compute_consistency(clean_text)
 
+        # 6. Constraint Adherence & Context Verification
+        constraint_score = self._compute_constraint_adherence(clean_text, context)
+
         # Composite deterministic score
-        # Relevance: 30%, Substance/Usefulness: 25%, Structure: 20%, Clarity: 15%, Consistency: 10%
+        # Relevance: 25%, Substance: 25%, Structure: 20%, Clarity: 15%, Consistency: 10%, Constraint Adherence: 5%
         deterministic_score = (
-            (0.30 * relevance_score)
+            (0.25 * relevance_score)
             + (0.25 * usefulness_score)
             + (0.20 * structure_score)
             + (0.15 * clarity_score)
             + (0.10 * consistency_score)
+            + (0.05 * constraint_score)
         )
         deterministic_score = max(0.0, min(1.0, deterministic_score))
 
@@ -80,6 +84,7 @@ class QualityScorer:
             "structure": round(structure_score, 4),
             "clarity": round(clarity_score, 4),
             "consistency": round(consistency_score, 4),
+            "constraint_adherence": round(constraint_score, 4),
             "deterministic_score": round(deterministic_score, 4),
             "llm_evaluated": False,
         }
@@ -100,6 +105,42 @@ class QualityScorer:
                 return round(final_score, 4), breakdown
 
         return round(deterministic_score, 4), breakdown
+
+    def _compute_constraint_adherence(self, text: str, context: Optional[Any]) -> float:
+        """Evaluates whether explicit prompt or task constraints were honored in the output."""
+        if not context:
+            return 0.85
+
+        score = 0.85
+        text_lower = text.lower()
+        context_str = str(context).lower()
+
+        # Check required verification constraint
+        needs_verif = False
+        if isinstance(context, dict):
+            needs_verif = bool(context.get("require_verification") or context.get("needs_verification"))
+        if not needs_verif and any(k in context_str for k in ["verify", "verification", "factual accuracy"]):
+            needs_verif = True
+
+        if needs_verif:
+            has_verif_marker = any(
+                term in text_lower
+                for term in ["verified", "verification", "fact-check", "audit", "confirmed", "validated"]
+            )
+            if not has_verif_marker:
+                score -= 0.20
+
+        # Check expected output format
+        if isinstance(context, dict):
+            expected_format = context.get("expected_output_format")
+            if expected_format:
+                fmt = str(expected_format).lower()
+                if "table" in fmt and "|" not in text:
+                    score -= 0.15
+                elif "json" in fmt and not ("{" in text and "}" in text):
+                    score -= 0.15
+
+        return max(0.1, min(1.0, score))
 
     def _compute_relevance(self, text: str, user_prompt: Optional[str]) -> float:
         """Measures keyword overlap and prompt alignment."""
@@ -173,6 +214,15 @@ class QualityScorer:
         for p in placeholder_tokens:
             if p in text.lower():
                 substance -= 0.25
+
+        # Check lexical diversity (unique words / total words) to prevent looping gaming
+        words = text.lower().split()
+        if len(words) > 30:
+            unique_ratio = len(set(words)) / len(words)
+            if unique_ratio < 0.25:  # extremely repetitive text
+                substance -= 0.40
+            elif unique_ratio < 0.40:
+                substance -= 0.15
 
         return max(0.0, min(1.0, substance))
 

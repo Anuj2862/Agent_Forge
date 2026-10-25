@@ -5,19 +5,29 @@ import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   evaluateExecution,
-  runExecution,
+  startExecutionAsync,
+  getExecution,
+  getExecutionEventsHistory,
+  subscribeToExecutionEvents,
   evolveArchitecture,
   compareTaskRuns,
   api,
   ArchitectureSpec,
   TaskComparisonResponse,
+  TaskDetail,
+  ExecutionDetail,
+  EvaluationDetail,
+  ExecutionEvent,
+  AgentConfig,
 } from "@/lib/api";
 import ArchitectureGraph from "@/components/architecture/ArchitectureGraph";
 import ExecutionTimeline from "@/components/execution/ExecutionTimeline";
+import LiveExecutionStatus, { StreamConnectionStatus } from "@/components/execution/LiveExecutionStatus";
 import MetricsPanel from "@/components/evaluation/MetricsPanel";
 import ReflectionPanel from "@/components/evaluation/ReflectionPanel";
+import DecisionVerdictCard from "@/components/DecisionVerdictCard";
 
-export default function RunPage({ params }: { params?: any }) {
+export default function RunPage({ params }: { params?: { task_id?: string } }) {
   const routerParams = useParams();
   const taskId =
     (routerParams?.task_id as string) ||
@@ -26,9 +36,9 @@ export default function RunPage({ params }: { params?: any }) {
   const execParam = searchParams.get("exec");
 
   const [activeTab, setActiveTab] = useState<"run_1" | "run_2" | "comparison">("run_1");
-  const [taskData, setTaskData] = useState<any>(null);
-  const [execData, setExecData] = useState<any>(null);
-  const [evalData, setEvalData] = useState<any>(null);
+  const [taskData, setTaskData] = useState<TaskDetail | null>(null);
+  const [execData, setExecData] = useState<ExecutionDetail | null>(null);
+  const [evalData, setEvalData] = useState<EvaluationDetail | null>(null);
   const [archV1, setArchV1] = useState<ArchitectureSpec | null>(null);
   const [archV2, setArchV2] = useState<ArchitectureSpec | null>(null);
   const [comparison, setComparison] = useState<TaskComparisonResponse | null>(null);
@@ -36,15 +46,134 @@ export default function RunPage({ params }: { params?: any }) {
   const [loading, setLoading] = useState(true);
   const [evaluating, setEvaluating] = useState(false);
   const [isEvolving, setIsEvolving] = useState(false);
+  const [isExecutingV1, setIsExecutingV1] = useState(false);
   const [isExecutingV2, setIsExecutingV2] = useState(false);
-  const [evolvedModifications, setEvolvedModifications] = useState<string[]>([]);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Real-time execution events & streaming state
+  const [events, setEvents] = useState<ExecutionEvent[]>([]);
+  const [streamState, setStreamState] = useState<StreamConnectionStatus>("disconnected");
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [showConstraints, setShowConstraints] = useState(false);
+
+  const currentExecutionId = execData?.execution_id;
+  const currentExecutionStatus = execData?.status;
+
+  // Subscribe to SSE stream and load event history when execution changes
+  useEffect(() => {
+    let unsub: (() => void) | null = null;
+    let isMounted = true;
+
+    async function loadEventsAndSubscribe() {
+      if (!currentExecutionId) {
+        setEvents([]);
+        setStreamState("disconnected");
+        setIsStreaming(false);
+        return;
+      }
+
+      try {
+        const history = await getExecutionEventsHistory(currentExecutionId);
+        if (isMounted) {
+          setEvents(history.events || []);
+        }
+
+        // If currently running, establish live SSE subscription
+        if (currentExecutionStatus === "running") {
+          setStreamState("streaming");
+          setIsStreaming(true);
+
+          const afterSeq = history.events?.length
+            ? history.events[history.events.length - 1].sequence_number
+            : 0;
+
+          unsub = subscribeToExecutionEvents(
+            currentExecutionId,
+            {
+              onOpen: () => {
+                if (isMounted) setStreamState("streaming");
+              },
+              onEvent: (ev) => {
+                if (!isMounted) return;
+                setEvents((prev) => {
+                  if (prev.some((e) => e.event_id === ev.event_id)) return prev;
+                  return [...prev, ev];
+                });
+                if (ev.event_type === "evaluation.completed") {
+                  api.get(`/tasks/${taskId}`).then((tResp) => {
+                    if (isMounted) {
+                      setTaskData(tResp.data);
+                      if (tResp.data.latest_evaluation) {
+                        setEvalData(tResp.data.latest_evaluation);
+                      }
+                    }
+                  }).catch(() => null);
+                } else if (ev.event_type === "evolution.validated" || ev.event_type === "evolution.proposed") {
+                  api.get(`/tasks/${taskId}`).then((tResp) => {
+                    if (isMounted && tResp.data.architecture_versions?.v2) {
+                      setArchV2(tResp.data.architecture_versions.v2);
+                    }
+                  }).catch(() => null);
+                } else if (ev.event_type === "evolution.accepted" || ev.event_type === "evolution.rejected") {
+                  compareTaskRuns(taskId).then((comp) => {
+                    if (isMounted) setComparison(comp);
+                  }).catch(() => null);
+                } else if (ev.event_type === "execution.completed") {
+                  setStreamState("completed");
+                  setIsStreaming(false);
+                  getExecution(currentExecutionId).then((fresh) => {
+                    if (isMounted) setExecData(fresh);
+                  }).catch(() => null);
+                  api.get(`/tasks/${taskId}`).then((tResp) => {
+                    if (isMounted) {
+                      setTaskData(tResp.data);
+                      if (tResp.data.latest_evaluation) {
+                        setEvalData(tResp.data.latest_evaluation);
+                      }
+                      if (tResp.data.architecture_versions?.v2) {
+                        setArchV2(tResp.data.architecture_versions.v2);
+                      }
+                    }
+                  }).catch(() => null);
+                  compareTaskRuns(taskId).then((comp) => {
+                    if (isMounted) setComparison(comp);
+                  }).catch(() => null);
+                } else if (ev.event_type === "execution.failed") {
+                  setStreamState("completed");
+                  setIsStreaming(false);
+                }
+              },
+              onError: () => {
+                if (isMounted) setStreamState("reconnecting");
+              },
+            },
+            afterSeq
+          );
+        } else {
+          setStreamState(currentExecutionStatus === "completed" ? "completed" : "disconnected");
+          setIsStreaming(false);
+        }
+      } catch {
+        if (isMounted) setStreamState("disconnected");
+      }
+    }
+
+    loadEventsAndSubscribe();
+
+    return () => {
+      isMounted = false;
+      if (unsub) unsub();
+    };
+  }, [currentExecutionId, currentExecutionStatus, taskId]);
+
 
   useEffect(() => {
     if (!taskId) return;
     async function load() {
       try {
         setLoading(true);
+        setError(null);
         const tResp = await api.get(`/tasks/${taskId}`);
         setTaskData(tResp.data);
 
@@ -56,15 +185,22 @@ export default function RunPage({ params }: { params?: any }) {
           setArchV2(tResp.data.architecture_versions.v2);
         }
 
-        // Load execution if provided
+        // Load execution if provided or check task executions
+        let currentExec: ExecutionDetail | null = null;
         if (execParam) {
           try {
             const eResp = await api.get(`/execution/${execParam}`);
-            setExecData(eResp.data);
-            if (eResp.data.run_number === 2) {
+            currentExec = eResp.data;
+            setExecData(currentExec);
+            if (currentExec?.run_number === 2) {
               setActiveTab("run_2");
             }
-          } catch (_) {}
+          } catch {
+            // Optional execution param load failure ignored
+          }
+        } else if (tResp.data.latest_execution) {
+          currentExec = tResp.data.latest_execution;
+          setExecData(currentExec);
         }
 
         // Load evaluation if exists
@@ -73,18 +209,22 @@ export default function RunPage({ params }: { params?: any }) {
           try {
             const evResp = await api.get(`/evaluation/${evalId}`);
             setEvalData(evResp.data);
-          } catch (_) {}
+          } catch {
+            // Handled gracefully
+          }
         }
 
         // Check for existing comparison
         try {
           const compResp = await compareTaskRuns(taskId);
-          if (compResp.has_comparison) {
+          if (compResp.has_comparison || compResp.evolution_decision) {
             setComparison(compResp);
           }
-        } catch (_) {}
-      } catch (err: any) {
-        setError(err.message || "Failed to load run data");
+        } catch {
+          // Handled gracefully
+        }
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Failed to load experiment session data.");
       } finally {
         setLoading(false);
       }
@@ -96,13 +236,18 @@ export default function RunPage({ params }: { params?: any }) {
   const handleEvaluate = async () => {
     if (!execData) return;
     setEvaluating(true);
+    setError(null);
     try {
       const result = await evaluateExecution(execData.execution_id, taskId);
       setEvalData(result);
-      setTaskData((p: any) => ({
+      setTaskData((p: TaskDetail | null) => (p ? {
         ...p,
-        latest_evaluation_id: result.evaluation_result.evaluation_id,
-      }));
+        latest_evaluation_id: result.evaluation_id,
+        latest_evaluation: result,
+      } : p));
+
+      setActionSuccess(`Evaluation completed. Overall score: ${((result.success_rating ?? 0.8) * 100).toFixed(0)}%`);
+      setTimeout(() => setActionSuccess(null), 4000);
 
       // Check comparison if run 2
       if (execData.run_number >= 2) {
@@ -110,10 +255,12 @@ export default function RunPage({ params }: { params?: any }) {
           const compResp = await compareTaskRuns(taskId);
           setComparison(compResp);
           setActiveTab("comparison");
-        } catch (_) {}
+        } catch {
+          // Comparison handled gracefully
+        }
       }
-    } catch (err: any) {
-      setError(err.message || "Evaluation failed");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Evaluation failed");
     } finally {
       setEvaluating(false);
     }
@@ -126,21 +273,81 @@ export default function RunPage({ params }: { params?: any }) {
     try {
       const res = await evolveArchitecture(taskId);
       setArchV2(res.evolved_architecture);
-      setEvolvedModifications(res.modifications_applied);
-      setTaskData((prev: any) => ({
+      setTaskData((prev: TaskDetail | null) => (prev ? {
         ...prev,
         architecture_spec: res.evolved_architecture,
         architecture_versions: {
           ...(prev.architecture_versions || {}),
-          v1: archV1 || prev.architecture_spec,
+          v1: archV1 || prev.architecture_spec || res.evolved_architecture,
           v2: res.evolved_architecture,
         },
-      }));
+      } : prev));
+
+      setActionSuccess(`Architecture mutated into Version 2! Applied: ${res.modifications_applied.join(", ")}`);
+      setTimeout(() => setActionSuccess(null), 5000);
       setActiveTab("run_2");
-    } catch (err: any) {
-      setError(err.message || "Failed to evolve architecture");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to evolve architecture");
     } finally {
       setIsEvolving(false);
+    }
+  };
+
+  // Execute Architecture v1
+  const handleExecuteV1 = async () => {
+    setIsExecutingV1(true);
+    setError(null);
+    setEvents([]);
+    try {
+      const startRes = await startExecutionAsync(taskId, 1);
+      const partialExec: ExecutionDetail = {
+        execution_id: startRes.execution_id,
+        task_id: taskId,
+        architecture_id: startRes.architecture_id,
+        run_number: 1,
+        status: "running",
+        duration_seconds: 0,
+        total_steps: 0,
+        agent_count: archV1?.agents?.length || 1,
+        tool_call_count: 0,
+        overall_success_rate: 0,
+        step_history: [],
+        agent_traces: [],
+        agent_logs: [],
+      };
+      setExecData(partialExec);
+      setStreamState("streaming");
+      setIsStreaming(true);
+
+      await new Promise<void>((resolve, reject) => {
+        const unsub = subscribeToExecutionEvents(startRes.execution_id, {
+          onEvent: (ev) => {
+            setEvents((prev) => (prev.some((e) => e.event_id === ev.event_id) ? prev : [...prev, ev]));
+            if (ev.event_type === "execution.completed") {
+              unsub();
+              resolve();
+            } else if (ev.event_type === "execution.failed") {
+              unsub();
+              reject(new Error(ev.error || "Execution failed"));
+            }
+          },
+          onError: () => {
+            api.get(`/execution/${startRes.execution_id}`).then((r) => {
+              if (r.data.status === "completed") resolve();
+            });
+          },
+        });
+      });
+
+      const freshExec = await getExecution(startRes.execution_id);
+      setExecData(freshExec);
+      setActionSuccess("Architecture V1 executed successfully with live streaming telemetry!");
+      setTimeout(() => setActionSuccess(null), 4000);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Execution of Architecture V1 failed");
+    } finally {
+      setIsExecutingV1(false);
+      setIsStreaming(false);
     }
   };
 
@@ -148,49 +355,104 @@ export default function RunPage({ params }: { params?: any }) {
   const handleExecuteV2 = async () => {
     setIsExecutingV2(true);
     setError(null);
+    setEvents([]);
     try {
-      const execResult = await runExecution(taskId, 2);
-      setExecData(execResult);
+      const startRes = await startExecutionAsync(taskId, 2);
+      const partialExec: ExecutionDetail = {
+        execution_id: startRes.execution_id,
+        task_id: taskId,
+        architecture_id: startRes.architecture_id,
+        run_number: 2,
+        status: "running",
+        duration_seconds: 0,
+        total_steps: 0,
+        agent_count: archV2?.agents?.length || 1,
+        tool_call_count: 0,
+        overall_success_rate: 0,
+        step_history: [],
+        agent_traces: [],
+        agent_logs: [],
+      };
+      setExecData(partialExec);
+      setStreamState("streaming");
+      setIsStreaming(true);
+
+      await new Promise<void>((resolve, reject) => {
+        const unsub = subscribeToExecutionEvents(startRes.execution_id, {
+          onEvent: (ev) => {
+            setEvents((prev) => (prev.some((e) => e.event_id === ev.event_id) ? prev : [...prev, ev]));
+            if (ev.event_type === "execution.completed") {
+              unsub();
+              resolve();
+            } else if (ev.event_type === "execution.failed") {
+              unsub();
+              reject(new Error(ev.error || "Execution failed"));
+            }
+          },
+          onError: () => {
+            api.get(`/execution/${startRes.execution_id}`).then((r) => {
+              if (r.data.status === "completed") resolve();
+            });
+          },
+        });
+      });
+
+      const freshExec = await getExecution(startRes.execution_id);
+      setExecData(freshExec);
 
       // Auto evaluate Run 2
-      const evalResult = await evaluateExecution(execResult.execution_id, taskId);
+      const evalResult = await evaluateExecution(freshExec.execution_id, taskId);
       setEvalData(evalResult);
 
       // Fetch side-by-side comparison
       const comp = await compareTaskRuns(taskId);
       setComparison(comp);
       setActiveTab("comparison");
-    } catch (err: any) {
-      setError(err.message || "Execution of Architecture v2 failed");
+
+      setActionSuccess("Architecture V2 executed & evaluated successfully with live stream telemetry!");
+      setTimeout(() => setActionSuccess(null), 4000);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Execution of Architecture V2 failed");
     } finally {
       setIsExecutingV2(false);
+      setIsStreaming(false);
     }
   };
 
-  /* ── Loading ─────────────────────────────────────────────────────── */
   if (loading) {
     return (
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", gap: 16 }}>
-        <span className="spinner" style={{ width: 36, height: 36, borderWidth: 3 }} />
-        <p style={{ color: "var(--text-muted)", fontSize: 14 }}>Loading session data…</p>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", gap: 14 }}>
+        <span className="spinner" style={{ width: 32, height: 32, borderWidth: 3 }} />
+        <p style={{ color: "var(--text-muted)", fontSize: 13 }}>Loading experiment session &amp; runtime records…</p>
       </div>
     );
   }
 
-  if (error || !taskData) {
+  if (error && !taskData) {
     return (
-      <div style={{ maxWidth: 600, margin: "60px auto", padding: "24px", background: "rgba(244,63,94,0.06)", border: "1px solid rgba(244,63,94,0.2)", borderRadius: 12, color: "#fb7185", textAlign: "center", fontSize: 14 }}>
-        <div style={{ fontWeight: 700, marginBottom: 8 }}>Unable to Load Session</div>
-        <p style={{ color: "var(--text-muted)", marginBottom: 16 }}>{error || "Task not found."}</p>
-        <Link href="/" className="btn btn-primary" style={{ display: "inline-block", fontSize: 12 }}>
+      <div style={{ maxWidth: 540, margin: "60px auto", padding: "28px", background: "rgba(244, 63, 94, 0.06)", border: "1px solid rgba(244, 63, 94, 0.25)", borderRadius: 12, textAlign: "center" }}>
+        <div style={{ fontWeight: 800, color: "#fb7185", fontSize: 16, marginBottom: 8 }}>
+          Experiment Session Unavailable
+        </div>
+        <p style={{ color: "var(--text-muted)", fontSize: 13, marginBottom: 18, lineHeight: 1.5 }}>
+          {error || "Could not retrieve task specifications from local SQLite database."}
+        </p>
+        <Link href="/" className="btn btn-primary btn-sm">
           ← Return to Task Input
         </Link>
       </div>
     );
   }
 
-  const taskSpec = taskData.task_spec;
-  const currentArchSpec = activeTab === "run_2" && archV2 ? archV2 : archV1 || taskData.architecture_spec;
+  const taskSpec = taskData?.task_spec || {};
+  const currentArchSpec: ArchitectureSpec =
+    (activeTab === "run_2" && archV2 ? archV2 : archV1 || taskData?.architecture_spec) || {
+      architecture_id: "default",
+      task_id: taskId,
+      topology: "pipeline",
+      agents: [],
+      connections: [],
+    };
   const runNumber = activeTab === "run_2" ? 2 : 1;
 
   // Newly evolved agents in v2
@@ -199,357 +461,552 @@ export default function RunPage({ params }: { params?: any }) {
     .filter((a) => !v1AgentIds.has(a.agent_id))
     .map((a) => a.agent_id);
 
+  const taskTypeStr = String(taskSpec.task_type || taskData?.task_type || "general");
+  const complexityStr = String(taskSpec.complexity || taskData?.complexity || "low");
+  const userPromptStr = String(taskSpec.user_prompt || taskData?.user_prompt || "");
+
+  // Extract constraints
+  const rawConstraints = taskSpec.constraints;
+  const constraintsList: string[] = Array.isArray(rawConstraints)
+    ? rawConstraints.map(String)
+    : typeof rawConstraints === "object" && rawConstraints !== null
+    ? Object.entries(rawConstraints).map(([k, v]) => `${k}: ${v}`)
+    : [];
+
   return (
-    <div style={{ maxWidth: 1280, margin: "0 auto", padding: "28px 24px 80px" }}>
-      {/* ── Top Bar with Reset / New Task ────────────────────────── */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <Link
-          href="/"
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* ── Action Success Confirmation Banner ─────────────────── */}
+      {actionSuccess && (
+        <div
+          className="fade-up"
           style={{
-            display: "inline-flex",
+            padding: "10px 16px",
+            borderRadius: 8,
+            background: "rgba(16, 185, 129, 0.12)",
+            border: "1px solid rgba(16, 185, 129, 0.3)",
+            color: "#34d399",
+            fontSize: 12.5,
+            fontWeight: 600,
+            display: "flex",
             alignItems: "center",
-            gap: 6,
-            fontSize: 12,
-            color: "var(--text-muted)",
-            textDecoration: "none",
-            background: "rgba(255,255,255,0.03)",
-            border: "1px solid var(--border-soft)",
-            padding: "5px 12px",
-            borderRadius: 6,
-            transition: "all .15s ease",
+            justifyContent: "space-between",
           }}
         >
-          ← New Task / Reset Session
-        </Link>
+          <span>✓ {actionSuccess}</span>
+          <button
+            onClick={() => setActionSuccess(null)}
+            style={{ background: "none", border: "none", color: "#34d399", cursor: "pointer", fontSize: 13 }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
-        {/* Mode indicator */}
-        <span style={{ fontSize: 11, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#34d399" }} />
-          Session: <code style={{ color: "#818cf8" }}>{taskId}</code>
-        </span>
-      </div>
+      {/* ── Error Banner ────────────────────────────────────────── */}
+      {error && (
+        <div
+          className="fade-up"
+          style={{
+            padding: "10px 16px",
+            borderRadius: 8,
+            background: "rgba(244, 63, 94, 0.12)",
+            border: "1px solid rgba(244, 63, 94, 0.3)",
+            color: "#fb7185",
+            fontSize: 12.5,
+            fontWeight: 600,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <span>✕ {error}</span>
+          <button
+            onClick={() => setError(null)}
+            style={{ background: "none", border: "none", color: "#fb7185", cursor: "pointer", fontSize: 13 }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
-      {/* ── Session Header ────────────────────────────────────────── */}
+      {/* ── Research Brief & Run Selector ────────────────────────── */}
       <div
-        className="fade-up"
+        className="card fade-up"
         style={{
-          display: "flex",
-          flexWrap: "wrap",
-          alignItems: "flex-start",
-          justifyContent: "space-between",
-          gap: 16,
-          marginBottom: 24,
-          paddingBottom: 22,
-          borderBottom: "1px solid var(--border-soft)",
+          padding: "20px 24px",
         }}
       >
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
-            <h1 style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em" }}>
-              {activeTab === "comparison" ? "Evolution Comparison" : `Run #${runNumber}`}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 16 }}>
+          {/* Left: Experiment Description & Technical Meta */}
+          <div style={{ flex: 1, minWidth: 320 }}>
+            {/* Experiment Title / User Prompt */}
+            <h1
+              style={{
+                fontSize: 20,
+                fontWeight: 700,
+                color: "var(--text-primary)",
+                lineHeight: 1.4,
+                marginBottom: 8,
+                letterSpacing: "-0.01em",
+              }}
+            >
+              {userPromptStr || "Autonomous Multi-Agent Task Execution"}
             </h1>
-            <span className="badge badge-violet">{taskSpec.task_type.replace(/_/g, " ")}</span>
-            <span className="badge badge-cyan">{taskSpec.complexity} complexity</span>
-            {archV2 && activeTab === "run_2" && (
-              <span className="badge" style={{ background: "rgba(16,185,129,0.15)", color: "#34d399", border: "1px solid rgba(16,185,129,0.3)" }}>
-                ★ Mutated Architecture v2
+
+            {/* Subtle Inline Technical Metadata */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: 8,
+                fontSize: 12.5,
+                color: "var(--text-secondary)",
+              }}
+            >
+              <span>
+                Task ID:{" "}
+                <code
+                  style={{
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: 12,
+                    color: "var(--blue-primary)",
+                  }}
+                >
+                  {taskId}
+                </code>
               </span>
+              <span style={{ color: "var(--border-strong)" }}>·</span>
+              <span>Type: <strong style={{ color: "var(--text-primary)", fontWeight: 500 }}>{taskTypeStr.replace(/_/g, " ")}</strong></span>
+              <span style={{ color: "var(--border-strong)" }}>·</span>
+              <span>Complexity: <strong style={{ color: "var(--text-primary)", fontWeight: 500 }}>{complexityStr}</strong></span>
+              <span style={{ color: "var(--border-strong)" }}>·</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                <span
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: "50%",
+                    background: archV2 ? "var(--emerald)" : "var(--blue-bright)",
+                  }}
+                />
+                <span style={{ color: archV2 ? "var(--emerald)" : "var(--text-secondary)" }}>
+                  {archV2 ? "V2 Candidate Available" : "Baseline V1 Active"}
+                </span>
+              </span>
+
+              {constraintsList.length > 0 && (
+                <>
+                  <span style={{ color: "var(--border-strong)" }}>·</span>
+                  <button
+                    onClick={() => setShowConstraints(!showConstraints)}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "var(--blue-primary)",
+                      fontSize: 12,
+                      cursor: "pointer",
+                      padding: 0,
+                      textDecoration: "underline",
+                    }}
+                  >
+                    {showConstraints ? "Hide constraints ▴" : `View constraints (${constraintsList.length}) ▾`}
+                  </button>
+                </>
+              )}
+            </div>
+
+            {/* Collapsible Constraints Specification Drawer */}
+            {showConstraints && constraintsList.length > 0 && (
+              <div
+                style={{
+                  marginTop: 14,
+                  padding: "12px 16px",
+                  background: "var(--bg-card-subtle)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 8,
+                }}
+              >
+                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
+                  Constraint Specification (Hard Invariants)
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 8 }}>
+                  {constraintsList.map((c, idx) => (
+                    <div key={idx} style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+                      <span style={{ color: "var(--blue-primary)", marginRight: 6 }}>•</span>
+                      {c}
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
-          <p style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.5 }}>
-            <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Task: </span>
-            {taskSpec.user_prompt}
-          </p>
-        </div>
 
-        {/* Tab Switcher */}
-        <div style={{ display: "flex", gap: 6, background: "rgba(15,23,42,0.8)", padding: 4, borderRadius: 8, border: "1px solid var(--border-soft)" }}>
-          <button
-            onClick={() => setActiveTab("run_1")}
+          {/* Right: Restrained Run Selector Segmented Control */}
+          <div
             style={{
-              padding: "6px 14px",
-              borderRadius: 6,
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: "pointer",
-              border: "none",
-              background: activeTab === "run_1" ? "var(--bg-card)" : "transparent",
-              color: activeTab === "run_1" ? "#e2e8f0" : "var(--text-muted)",
-              boxShadow: activeTab === "run_1" ? "0 1px 3px rgba(0,0,0,0.4)" : "none",
+              display: "flex",
+              alignItems: "center",
+              background: "var(--bg-card-subtle)",
+              padding: 3,
+              borderRadius: 8,
+              border: "1px solid var(--border)",
             }}
           >
-            Run #1 (Initial)
-          </button>
-          <button
-            onClick={() => setActiveTab("run_2")}
-            style={{
-              padding: "6px 14px",
-              borderRadius: 6,
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: "pointer",
-              border: "none",
-              background: activeTab === "run_2" ? "var(--bg-card)" : "transparent",
-              color: activeTab === "run_2" ? "#34d399" : "var(--text-muted)",
-              boxShadow: activeTab === "run_2" ? "0 1px 3px rgba(0,0,0,0.4)" : "none",
-            }}
-          >
-            Run #2 {archV2 ? "(Evolved v2)" : ""}
-          </button>
-          {comparison && (
+            <button
+              onClick={() => setActiveTab("run_1")}
+              style={{
+                fontSize: 12,
+                fontWeight: activeTab === "run_1" ? 600 : 500,
+                color: activeTab === "run_1" ? "var(--blue-primary)" : "var(--text-muted)",
+                background: activeTab === "run_1" ? "rgba(37, 99, 235, 0.12)" : "transparent",
+                border: activeTab === "run_1" ? "1px solid var(--border-active)" : "1px solid transparent",
+                borderRadius: 6,
+                padding: "6px 14px",
+                cursor: "pointer",
+                transition: "all 0.15s ease",
+              }}
+            >
+              Run 1 (Baseline V1)
+            </button>
+            <button
+              onClick={() => setActiveTab("run_2")}
+              style={{
+                fontSize: 12,
+                fontWeight: activeTab === "run_2" ? 600 : 500,
+                color: activeTab === "run_2" ? "var(--blue-primary)" : "var(--text-muted)",
+                background: activeTab === "run_2" ? "rgba(37, 99, 235, 0.12)" : "transparent",
+                border: activeTab === "run_2" ? "1px solid var(--border-active)" : "1px solid transparent",
+                borderRadius: 6,
+                padding: "6px 14px",
+                cursor: "pointer",
+                transition: "all 0.15s ease",
+              }}
+            >
+              Run 2 {archV2 ? "(Candidate V2)" : "(Pending Mutation)"}
+            </button>
             <button
               onClick={() => setActiveTab("comparison")}
               style={{
-                padding: "6px 14px",
-                borderRadius: 6,
                 fontSize: 12,
-                fontWeight: 600,
+                fontWeight: activeTab === "comparison" ? 600 : 500,
+                color: activeTab === "comparison" ? "var(--emerald)" : "var(--text-muted)",
+                background: activeTab === "comparison" ? "rgba(5, 150, 105, 0.12)" : "transparent",
+                border: activeTab === "comparison" ? "1px solid var(--decision-accepted-border)" : "1px solid transparent",
+                borderRadius: 6,
+                padding: "6px 14px",
                 cursor: "pointer",
-                border: "none",
-                background: activeTab === "comparison" ? "rgba(99,102,241,0.2)" : "transparent",
-                color: activeTab === "comparison" ? "#a5b4fc" : "var(--text-muted)",
-                boxShadow: activeTab === "comparison" ? "0 1px 3px rgba(0,0,0,0.4)" : "none",
+                transition: "all 0.15s ease",
               }}
             >
-              Δ Comparison
+              Comparative Verdict
             </button>
-          )}
+          </div>
         </div>
       </div>
 
-      {/* ── VIEW: EVOLUTION COMPARISON (PHASE 6 & 12) ─────────────── */}
-      {activeTab === "comparison" && comparison && (
+      {/* ── TAB 3: EVOLUTION COMPARISON & DETERMINISTIC DECISION ──── */}
+      {activeTab === "comparison" && (
         <div className="fade-up" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          {/* Header Banner */}
-          <div
-            className="card"
-            style={{
-              padding: "24px",
-              background: "linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(16,185,129,0.08) 100%)",
-              borderColor: "rgba(99,102,241,0.25)",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-              <span style={{ fontSize: 18 }}>🧬</span>
-              <h2 style={{ fontSize: 18, fontWeight: 800 }}>Autonomous Architecture Evolution Summary</h2>
+          {/* Decision Verdict Card */}
+          <DecisionVerdictCard
+            decision={comparison?.evolution_decision || taskData?.evolution_decision}
+            hasRuns={!!(comparison?.run_1 && comparison?.run_2)}
+          />
+
+          {/* Metric Comparison Table */}
+          {comparison?.has_comparison && comparison.run_1 && comparison.run_2 ? (
+            <div className="card">
+              <div className="card-header">
+                <div>
+                  <div className="card-title">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                    </svg>
+                    Run 1 vs Run 2 Metric Deltas (Empirical Evidence)
+                  </div>
+                  <div className="card-subtitle">
+                    Absolute differences evaluated against baseline performance
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ overflowX: "auto" }}>
+                <table className="research-table">
+                  <thead>
+                    <tr>
+                      <th>Metric Dimension</th>
+                      <th>Run #1 (Baseline V1)</th>
+                      <th>Run #2 (Candidate V2)</th>
+                      <th>Delta (Δ)</th>
+                      <th>Statistical Direction</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* Task Success */}
+                    <tr>
+                      <td style={{ fontWeight: 600 }}>Task Success Rate</td>
+                      <td style={{ fontFamily: "var(--font-mono, monospace)" }}>
+                        {comparison.run_1.evaluation?.metrics?.task_success !== undefined
+                          ? `${(comparison.run_1.evaluation.metrics.task_success * 100).toFixed(0)}%`
+                          : "N/A"}
+                      </td>
+                      <td style={{ fontFamily: "var(--font-mono, monospace)", color: "#34d399" }}>
+                        {comparison.run_2.evaluation?.metrics?.task_success !== undefined
+                          ? `${(comparison.run_2.evaluation.metrics.task_success * 100).toFixed(0)}%`
+                          : "N/A"}
+                      </td>
+                      <td
+                        style={{
+                          fontFamily: "var(--font-mono, monospace)",
+                          fontWeight: 700,
+                          color: (comparison.deltas?.task_success ?? 0) >= 0 ? "#34d399" : "#fb7185",
+                        }}
+                      >
+                        {comparison.deltas?.task_success !== undefined
+                          ? `${comparison.deltas.task_success >= 0 ? "+" : ""}${(comparison.deltas.task_success * 100).toFixed(1)}%`
+                          : "0.0%"}
+                      </td>
+                      <td>
+                        <span className={(comparison.deltas?.task_success ?? 0) >= 0 ? "badge badge-emerald" : "badge badge-rose"}>
+                          {(comparison.deltas?.task_success ?? 0) >= 0 ? "↑ Improved" : "↓ Regressed"}
+                        </span>
+                      </td>
+                    </tr>
+
+                    {/* Output Quality */}
+                    <tr>
+                      <td style={{ fontWeight: 600 }}>Output Quality</td>
+                      <td style={{ fontFamily: "var(--font-mono, monospace)" }}>
+                        {comparison.run_1.evaluation?.metrics?.quality !== undefined
+                          ? `${(comparison.run_1.evaluation.metrics.quality * 100).toFixed(0)}%`
+                          : "N/A"}
+                      </td>
+                      <td style={{ fontFamily: "var(--font-mono, monospace)", color: "#34d399" }}>
+                        {comparison.run_2.evaluation?.metrics?.quality !== undefined
+                          ? `${(comparison.run_2.evaluation.metrics.quality * 100).toFixed(0)}%`
+                          : "N/A"}
+                      </td>
+                      <td
+                        style={{
+                          fontFamily: "var(--font-mono, monospace)",
+                          fontWeight: 700,
+                          color: (comparison.deltas?.quality ?? 0) >= 0 ? "#34d399" : "#fb7185",
+                        }}
+                      >
+                        {comparison.deltas?.quality !== undefined
+                          ? `${comparison.deltas.quality >= 0 ? "+" : ""}${(comparison.deltas.quality * 100).toFixed(1)}%`
+                          : "0.0%"}
+                      </td>
+                      <td>
+                        <span className={(comparison.deltas?.quality ?? 0) >= 0 ? "badge badge-emerald" : "badge badge-rose"}>
+                          {(comparison.deltas?.quality ?? 0) >= 0 ? "↑ Enhanced" : "↓ Regressed"}
+                        </span>
+                      </td>
+                    </tr>
+
+                    {/* Factual Accuracy */}
+                    <tr>
+                      <td style={{ fontWeight: 600 }}>Factual Accuracy</td>
+                      <td style={{ fontFamily: "var(--font-mono, monospace)" }}>
+                        {comparison.run_1.evaluation?.metrics?.accuracy !== undefined
+                          ? `${(comparison.run_1.evaluation.metrics.accuracy * 100).toFixed(0)}%`
+                          : "N/A"}
+                      </td>
+                      <td style={{ fontFamily: "var(--font-mono, monospace)", color: "#34d399" }}>
+                        {comparison.run_2.evaluation?.metrics?.accuracy !== undefined
+                          ? `${(comparison.run_2.evaluation.metrics.accuracy * 100).toFixed(0)}%`
+                          : "N/A"}
+                      </td>
+                      <td
+                        style={{
+                          fontFamily: "var(--font-mono, monospace)",
+                          fontWeight: 700,
+                          color: (comparison.deltas?.accuracy ?? 0) >= 0 ? "#34d399" : "#fb7185",
+                        }}
+                      >
+                        {comparison.deltas?.accuracy !== undefined
+                          ? `${comparison.deltas.accuracy >= 0 ? "+" : ""}${(comparison.deltas.accuracy * 100).toFixed(1)}%`
+                          : "0.0%"}
+                      </td>
+                      <td>
+                        <span className={(comparison.deltas?.accuracy ?? 0) >= 0 ? "badge badge-emerald" : "badge badge-rose"}>
+                          {(comparison.deltas?.accuracy ?? 0) >= 0 ? "↑ Corroborated" : "↓ Regressed"}
+                        </span>
+                      </td>
+                    </tr>
+
+                    {/* Agent Team Count */}
+                    <tr>
+                      <td style={{ fontWeight: 600 }}>Agent Team Count</td>
+                      <td style={{ fontFamily: "var(--font-mono, monospace)" }}>
+                        {comparison.run_1.architecture?.agents?.length || 1} agents
+                      </td>
+                      <td style={{ fontFamily: "var(--font-mono, monospace)" }}>
+                        {comparison.run_2.architecture?.agents?.length || 1} agents
+                      </td>
+                      <td style={{ fontFamily: "var(--font-mono, monospace)", color: "#818cf8" }}>
+                        {(comparison.deltas?.agent_count ?? 0) >= 0 ? "+" : ""}
+                        {comparison.deltas?.agent_count ?? 0}
+                      </td>
+                      <td>
+                        <span className="badge badge-slate">Topology Shift</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
-            <p style={{ fontSize: 13, color: "var(--text-secondary)", maxWidth: 840, lineHeight: 1.6 }}>
-              Agent Forge analyzed the execution trace of <strong>Run #1</strong>, identified vulnerabilities in factual verification, generated structural recommendations, and mutated the graph into <strong>Architecture v2</strong>. Below is the empirical comparison of both runs.
-            </p>
-          </div>
-
-          {/* Metric Comparison Grid */}
-          <div className="card" style={{ padding: "22px" }}>
-            <SectionHeader
-              icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>}
-              color="#34d399"
-              title="Run 1 vs Run 2 Metric Deltas"
-              meta="Empirical performance shift after architecture mutation"
-            />
-
-            <div style={{ overflowX: "auto", marginTop: 18 }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid var(--border)", textAlign: "left", color: "var(--text-muted)" }}>
-                    <th style={{ padding: "10px 14px" }}>Metric Dimension</th>
-                    <th style={{ padding: "10px 14px" }}>Run #1 (Initial)</th>
-                    <th style={{ padding: "10px 14px" }}>Run #2 (Evolved v2)</th>
-                    <th style={{ padding: "10px 14px" }}>Delta (Δ)</th>
-                    <th style={{ padding: "10px 14px" }}>Evaluation Impact</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr style={{ borderBottom: "1px solid var(--border-soft)" }}>
-                    <td style={{ padding: "12px 14px", fontWeight: 600 }}>Task Success Rate</td>
-                    <td style={{ padding: "12px 14px", fontFamily: "monospace" }}>
-                      {((comparison.run_1?.evaluation?.evaluation_result?.metrics?.task_success ?? 0.72) * 100).toFixed(0)}%
-                    </td>
-                    <td style={{ padding: "12px 14px", fontFamily: "monospace", color: "#34d399" }}>
-                      {((comparison.run_2?.evaluation?.evaluation_result?.metrics?.task_success ?? 0.88) * 100).toFixed(0)}%
-                    </td>
-                    <td style={{ padding: "12px 14px", fontFamily: "monospace", fontWeight: 700, color: (comparison.deltas?.task_success ?? 0) >= 0 ? "#34d399" : "#fb7185" }}>
-                      {(comparison.deltas?.task_success ?? 0) >= 0 ? "+" : ""}
-                      {((comparison.deltas?.task_success ?? 0.16) * 100).toFixed(1)}%
-                    </td>
-                    <td style={{ padding: "12px 14px" }}>
-                      <span className="badge badge-emerald">↑ Increased</span>
-                    </td>
-                  </tr>
-
-                  <tr style={{ borderBottom: "1px solid var(--border-soft)" }}>
-                    <td style={{ padding: "12px 14px", fontWeight: 600 }}>Output Quality</td>
-                    <td style={{ padding: "12px 14px", fontFamily: "monospace" }}>
-                      {((comparison.run_1?.evaluation?.evaluation_result?.metrics?.quality ?? 0.75) * 100).toFixed(0)}%
-                    </td>
-                    <td style={{ padding: "12px 14px", fontFamily: "monospace", color: "#34d399" }}>
-                      {((comparison.run_2?.evaluation?.evaluation_result?.metrics?.quality ?? 0.86) * 100).toFixed(0)}%
-                    </td>
-                    <td style={{ padding: "12px 14px", fontFamily: "monospace", fontWeight: 700, color: (comparison.deltas?.quality ?? 0) >= 0 ? "#34d399" : "#fb7185" }}>
-                      {(comparison.deltas?.quality ?? 0) >= 0 ? "+" : ""}
-                      {((comparison.deltas?.quality ?? 0.11) * 100).toFixed(1)}%
-                    </td>
-                    <td style={{ padding: "12px 14px" }}>
-                      <span className="badge badge-emerald">↑ Enhanced Coherence</span>
-                    </td>
-                  </tr>
-
-                  <tr style={{ borderBottom: "1px solid var(--border-soft)" }}>
-                    <td style={{ padding: "12px 14px", fontWeight: 600 }}>Factual Accuracy</td>
-                    <td style={{ padding: "12px 14px", fontFamily: "monospace" }}>
-                      {((comparison.run_1?.evaluation?.evaluation_result?.metrics?.accuracy ?? 0.40) * 100).toFixed(0)}%
-                    </td>
-                    <td style={{ padding: "12px 14px", fontFamily: "monospace", color: "#34d399" }}>
-                      {((comparison.run_2?.evaluation?.evaluation_result?.metrics?.accuracy ?? 0.88) * 100).toFixed(0)}%
-                    </td>
-                    <td style={{ padding: "12px 14px", fontFamily: "monospace", fontWeight: 700, color: "#34d399" }}>
-                      +48.0%
-                    </td>
-                    <td style={{ padding: "12px 14px" }}>
-                      <span className="badge badge-emerald">↑ Verification Stage Added</span>
-                    </td>
-                  </tr>
-
-                  <tr style={{ borderBottom: "1px solid var(--border-soft)" }}>
-                    <td style={{ padding: "12px 14px", fontWeight: 600 }}>Verification Status</td>
-                    <td style={{ padding: "12px 14px", color: "#fbbf24" }}>⚠ Unverified Claims</td>
-                    <td style={{ padding: "12px 14px", color: "#34d399", fontWeight: 700 }}>✓ Corroborated</td>
-                    <td style={{ padding: "12px 14px", color: "#34d399" }}>Verified</td>
-                    <td style={{ padding: "12px 14px" }}>
-                      <span className="badge badge-emerald">Resolved</span>
-                    </td>
-                  </tr>
-
-                  <tr>
-                    <td style={{ padding: "12px 14px", fontWeight: 600 }}>Agent Team Count</td>
-                    <td style={{ padding: "12px 14px", fontFamily: "monospace" }}>
-                      {comparison.run_1?.architecture?.agents?.length || 2} agents
-                    </td>
-                    <td style={{ padding: "12px 14px", fontFamily: "monospace" }}>
-                      {comparison.run_2?.architecture?.agents?.length || 3} agents
-                    </td>
-                    <td style={{ padding: "12px 14px", fontFamily: "monospace", color: "#818cf8" }}>
-                      +1 agent
-                    </td>
-                    <td style={{ padding: "12px 14px" }}>
-                      <span className="badge badge-violet">Specialized Role Added</span>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+          ) : (
+            <div className="card" style={{ padding: "28px", textAlign: "center" }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", marginBottom: 6 }}>
+                Awaiting Run #2 Execution Traces
+              </div>
+              <p style={{ fontSize: 13, color: "var(--text-muted)", maxWidth: 440, margin: "0 auto 16px" }}>
+                Execute the mutated Architecture V2 to compare metric deltas against the Baseline Run 1.
+              </p>
+              {archV2 ? (
+                <button
+                  onClick={handleExecuteV2}
+                  disabled={isExecutingV2}
+                  className="btn btn-emerald btn-sm"
+                >
+                  {isExecutingV2 ? "Executing Architecture V2…" : "▶ Execute Architecture V2 Now"}
+                </button>
+              ) : (
+                <button
+                  onClick={handleApplyRecommendationAndEvolve}
+                  disabled={isEvolving}
+                  className="btn btn-primary btn-sm"
+                >
+                  {isEvolving ? "Mutating…" : "Apply Recommendations & Mutate V2"}
+                </button>
+              )}
             </div>
-          </div>
+          )}
 
           {/* Architecture Diff Card */}
-          {comparison.architecture_diff && (
-            <div className="card" style={{ padding: "22px" }}>
-              <SectionHeader
-                icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>}
-                color="#818cf8"
-                title="Graph Mutation Structural Diff"
-                meta="Exact topological changes applied by ArchitectureModifier"
-              />
+          {comparison?.architecture_diff && (
+            <div className="card">
+              <div className="card-header">
+                <div>
+                  <div className="card-title">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="3" y="3" width="7" height="7" rx="1.5" />
+                      <rect x="14" y="3" width="7" height="7" rx="1.5" />
+                      <rect x="14" y="14" width="7" height="7" rx="1.5" />
+                      <rect x="3" y="14" width="7" height="7" rx="1.5" />
+                    </svg>
+                    Topological Architecture Diff
+                  </div>
+                  <div className="card-subtitle">
+                    Exact graph mutation applied by Member 3 ArchitectureModifier
+                  </div>
+                </div>
+              </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 16 }}>
-                <div style={{ background: "rgba(16,185,129,0.05)", border: "1px solid rgba(16,185,129,0.2)", borderRadius: 8, padding: 14 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#34d399", textTransform: "uppercase", marginBottom: 6 }}>
-                    + Added Agent Node(s)
+              <div style={{ padding: "18px 20px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div style={{ background: "rgba(16, 185, 129, 0.05)", border: "1px solid rgba(16, 185, 129, 0.2)", borderRadius: 8, padding: 14 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#34d399", textTransform: "uppercase", marginBottom: 8 }}>
+                    + Added Agent Nodes
                   </div>
                   {comparison.architecture_diff.added_agents?.length ? (
-                    comparison.architecture_diff.added_agents.map((a: any) => (
-                      <div key={a.agent_id} style={{ fontSize: 12, color: "#e2e8f0", marginBottom: 4 }}>
+                    comparison.architecture_diff.added_agents.map((a: AgentConfig) => (
+                      <div key={a.agent_id} style={{ fontSize: 12, color: "var(--text-primary)", marginBottom: 4 }}>
                         • <strong>{a.name}</strong> ({a.role}) — tools: {a.tools?.join(", ") || "cognitive"}
                       </div>
                     ))
                   ) : (
-                    <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Specialized verification specialist added</span>
+                    <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                      Terminal agent augmented with independent verification capability
+                    </span>
                   )}
                 </div>
 
-                <div style={{ background: "rgba(99,102,241,0.05)", border: "1px solid rgba(99,102,241,0.2)", borderRadius: 8, padding: 14 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#818cf8", textTransform: "uppercase", marginBottom: 6 }}>
-                    Communication Edge Rewiring
+                <div style={{ background: "rgba(99, 102, 241, 0.05)", border: "1px solid rgba(99, 102, 241, 0.2)", borderRadius: 8, padding: 14 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#818cf8", textTransform: "uppercase", marginBottom: 8 }}>
+                    Edge &amp; Dependency Rewiring
                   </div>
-                  <div style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.6 }}>
-                    Direct research-to-writer connection rewired to route through the independent verification stage with cycle prevention.
+                  <div style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.5 }}>
+                    Graph connections rewired to route intermediate synthesis through verification with DAG cycle validation.
                   </div>
                 </div>
               </div>
             </div>
           )}
-
-          {/* Memory Persisted Banner */}
-          <div
-            style={{
-              padding: "16px 20px",
-              borderRadius: 10,
-              background: "rgba(16,185,129,0.08)",
-              border: "1px solid rgba(16,185,129,0.25)",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              flexWrap: "wrap",
-              gap: 12,
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div className="status-dot live" />
-              <span style={{ fontSize: 13, color: "#34d399", fontWeight: 600 }}>
-                Evolutions Persisted in Evolutionary Memory
-              </span>
-            </div>
-            <Link href="/history" className="btn btn-primary" style={{ fontSize: 12, padding: "6px 14px" }}>
-              View in Memory History →
-            </Link>
-          </div>
         </div>
       )}
 
-      {/* ── VIEW: RUN 1 or RUN 2 DASHBOARD ────────────────────────── */}
+      {/* ── TAB 1 & 2: RUN 1 or RUN 2 WORKBENCH ───────────────────── */}
       {activeTab !== "comparison" && (
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "1fr 360px",
+            gridTemplateColumns: "1fr 390px",
             gap: 20,
             alignItems: "start",
           }}
         >
-          {/* LEFT COLUMN: Architecture Graph + Evaluation + Evolution CTA */}
+          {/* LEFT: Architecture Graph + Evaluation + Mutation CTA */}
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             {/* Architecture Card */}
-            <section className="card fade-up" style={{ padding: "22px 22px 20px" }}>
-              <SectionHeader
-                icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>}
-                color="#818cf8"
-                title={activeTab === "run_2" ? "Mutated Architecture v2" : "Synthesized Architecture"}
-                meta={`${currentArchSpec.agents.length} agents · ${currentArchSpec.topology} topology · Click node to inspect`}
-              />
+            <div
+              className="card"
+              style={{
+                borderRadius: 12,
+                overflow: "hidden",
+                border: "1px solid var(--border)",
+              }}
+            >
+              <div
+                style={{
+                  padding: "16px 20px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  borderBottom: "1px solid var(--border)",
+                }}
+              >
+                <div>
+                  <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)" }}>
+                    {activeTab === "run_2" ? "Mutated Architecture Candidate (V2)" : "Synthesized Baseline Architecture (V1)"}
+                  </h2>
+                  <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
+                    {currentArchSpec.agents.length} agent nodes · {currentArchSpec.topology} topology · Click any node to inspect in drawer
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Architecture ID:</span>
+                  <code style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "var(--accent-blue)", background: "var(--accent-blue-subtle)", padding: "2px 8px", borderRadius: 4, border: "1px solid var(--border-soft)" }}>
+                    {currentArchSpec.architecture_id}
+                  </code>
+                </div>
+              </div>
 
               {currentArchSpec.meta_reasoning && (
-                <p
+                <div
                   style={{
-                    fontSize: 12,
+                    padding: "10px 20px",
+                    background: "var(--bg-card-subtle)",
+                    borderBottom: "1px solid var(--border)",
+                    fontSize: 12.5,
                     color: "var(--text-secondary)",
-                    lineHeight: 1.6,
-                    margin: "12px 0 16px",
-                    padding: "10px 14px",
-                    background: "var(--bg-secondary)",
-                    borderRadius: 8,
-                    border: "1px solid var(--border-soft)",
                     fontStyle: "italic",
+                    lineHeight: 1.5,
                   }}
                 >
-                  {currentArchSpec.meta_reasoning}
-                </p>
+                  &ldquo;{currentArchSpec.meta_reasoning}&rdquo;
+                </div>
               )}
 
-              <div style={{ height: 380, borderRadius: 10, overflow: "hidden" }}>
+              <div style={{ height: 500 }}>
                 <ArchitectureGraph
                   architecture={currentArchSpec}
                   evolvedAgentIds={activeTab === "run_2" ? evolvedAgentIds : []}
                 />
               </div>
-            </section>
+            </div>
 
             {/* Run 2 Execution CTA if Architecture v2 is loaded but not yet executed */}
             {activeTab === "run_2" && archV2 && (!execData || execData.run_number === 1) && (
@@ -558,186 +1015,246 @@ export default function RunPage({ params }: { params?: any }) {
                 style={{
                   padding: "24px",
                   textAlign: "center",
-                  background: "linear-gradient(135deg, rgba(16,185,129,0.08) 0%, rgba(99,102,241,0.08) 100%)",
-                  borderColor: "rgba(16,185,129,0.3)",
+                  background: "linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(99, 102, 241, 0.08) 100%)",
+                  borderColor: "rgba(16, 185, 129, 0.3)",
                 }}
               >
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#34d399", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 6 }}>
-                  Architecture v2 Ready
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#34d399", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+                  Architecture Candidate V2 Ready
                 </div>
-                <h3 style={{ fontSize: 16, fontWeight: 800, marginBottom: 8 }}>Execute Mutated Architecture (Run 2)</h3>
-                <p style={{ fontSize: 13, color: "var(--text-secondary)", maxWidth: 480, margin: "0 auto 18px" }}>
-                  Run the newly evolved agent graph through LangGraph to evaluate how the new verification stage impacts accuracy and output quality.
+                <h3 style={{ fontSize: 16, fontWeight: 800, marginBottom: 8, color: "var(--text-primary)" }}>
+                  Execute Mutated Architecture (Run 2)
+                </h3>
+                <p style={{ fontSize: 13, color: "var(--text-secondary)", maxWidth: 500, margin: "0 auto 18px", lineHeight: 1.5 }}>
+                  Execute the newly evolved graph through LangGraph with independent factual verification to observe impact on accuracy and quality.
                 </p>
                 <button
                   onClick={handleExecuteV2}
                   disabled={isExecutingV2}
-                  className="btn btn-primary"
-                  style={{ background: "#10b981", borderColor: "#059669", color: "#062b1b", fontWeight: 700, padding: "10px 24px" }}
+                  className="btn btn-emerald"
+                  style={{ padding: "10px 22px" }}
                 >
                   {isExecutingV2 ? (
-                    <><span className="spinner" style={{ width: 16, height: 16, borderTopColor: "#062b1b" }} />Executing Architecture v2…</>
+                    <><span className="spinner" /> Executing Architecture V2…</>
                   ) : (
-                    "▶ Execute Architecture v2"
+                    "▶ Execute Architecture V2"
                   )}
                 </button>
               </div>
             )}
 
-            {/* Evaluation & Reflection Panels */}
+            {/* Evaluation & Metrics */}
             {evalData && (
-              <>
-                <section className="card fade-up" style={{ padding: "22px" }}>
-                  <SectionHeader
-                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>}
-                    color="#34d399"
-                    title={`Evaluation Metrics (Run #${evalData.run_number || 1})`}
-                    meta={`Overall Score: ${((evalData.success_rating || 0.8) * 100).toFixed(0)}%`}
-                  />
-                  <div style={{ marginTop: 16 }}>
-                    <MetricsPanel metrics={evalData.evaluation_result.metrics} />
-                  </div>
-                </section>
-
-                <section className="card fade-up" style={{ padding: "22px" }}>
-                  <SectionHeader
-                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>}
-                    color="#c4b5fd"
-                    title="Reflection & Root-Cause Analysis"
-                    meta={`${evalData.reflection_result.identified_issues.length} issues · ${evalData.reflection_result.recommendations.length} recommendations`}
-                  />
-                  <div style={{ marginTop: 16 }}>
-                    <ReflectionPanel reflection={evalData.reflection_result} />
-                  </div>
-                </section>
-
-                {/* Evolve CTA in Run 1 */}
-                {activeTab === "run_1" && !archV2 && (
-                  evalData.reflection_result.recommendations.length > 0 ? (
-                    <div
-                      className="card fade-up"
-                      style={{
-                        padding: "24px",
-                        textAlign: "center",
-                        background: "linear-gradient(135deg, rgba(99,102,241,0.06) 0%, rgba(139,92,246,0.06) 100%)",
-                        borderColor: "rgba(99,102,241,0.25)",
-                      }}
-                    >
-                      <div style={{ fontSize: 11, fontWeight: 700, color: "#818cf8", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 6 }}>
-                        Architectural Self-Evolution
-                      </div>
-                      <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>
-                        Apply Recommendations &amp; Mutate Architecture
-                      </h3>
-                      <p style={{ fontSize: 13, color: "var(--text-secondary)", maxWidth: 500, margin: "0 auto 20px" }}>
-                        Member 3&apos;s ArchitectureModifier will programmatically evolve the architecture graph by adding recommended specialist agents and rewiring connections.
-                      </p>
-                      <button
-                        onClick={handleApplyRecommendationAndEvolve}
-                        disabled={isEvolving}
-                        className="btn btn-primary"
-                        style={{ padding: "10px 24px" }}
-                      >
-                        {isEvolving ? (
-                          <><span className="spinner" style={{ width: 16, height: 16 }} />Mutating Architecture…</>
-                        ) : (
-                          <>
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M2 12A10 10 0 0 0 15 21.5M2 12A10 10 0 0 1 15 2.5"/><path d="M15 2.5V8h5.5M15 21.5V16h5.5"/></svg>
-                            Apply Recommendation &amp; Evolve Graph →
-                          </>
-                        )}
-                      </button>
+              <div className="card">
+                <div className="card-header">
+                  <div>
+                    <div className="card-title">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                      </svg>
+                      Evaluation Metrics (Run #{evalData.run_number || runNumber})
                     </div>
-                  ) : (
-                    <div
-                      className="card fade-up"
-                      style={{
-                        padding: "20px",
-                        textAlign: "center",
-                        background: "rgba(16, 185, 129, 0.05)",
-                        borderColor: "rgba(16, 185, 129, 0.2)",
-                      }}
-                    >
-                      <div style={{ fontSize: 11, fontWeight: 700, color: "#10b981", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 4 }}>
-                        Optimal Architecture
-                      </div>
-                      <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: 0 }}>
-                        No architectural mutation recommended for this run. The current architecture met all evaluation criteria.
-                      </p>
+                    <div className="card-subtitle">
+                      Composite Score: {((evalData.success_rating ?? 0.8) * 100).toFixed(0)}%
                     </div>
-                  )
-                )}
-              </>
+                  </div>
+                </div>
+                <div style={{ padding: "18px 20px" }}>
+                  <MetricsPanel metrics={(evalData.metrics || evalData.evaluation_result?.metrics)!} />
+                </div>
+              </div>
+            )}
+
+            {/* Failure Diagnosis & Reflection */}
+            {evalData?.reflection_result && (
+              <div className="card">
+                <div className="card-header">
+                  <div>
+                    <div className="card-title">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="8" x2="12" y2="12" />
+                        <line x1="12" y1="16" x2="12.01" y2="16" />
+                      </svg>
+                      Failure Diagnosis &amp; Root-Cause Analysis
+                    </div>
+                    <div className="card-subtitle">
+                      {evalData.reflection_result.identified_issues.length} identified issue(s) · {evalData.reflection_result.recommendations.length} recommendation(s)
+                    </div>
+                  </div>
+                </div>
+                <div style={{ padding: "18px 20px" }}>
+                  <ReflectionPanel reflection={evalData.reflection_result} />
+                </div>
+              </div>
+            )}
+
+            {/* Mutation CTA in Run 1 */}
+            {activeTab === "run_1" && !archV2 && evalData?.reflection_result && (
+              evalData.reflection_result.recommendations.length > 0 ? (
+                <div
+                  className="card fade-up"
+                  style={{
+                    padding: "24px",
+                    textAlign: "center",
+                    background: "linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%)",
+                    borderColor: "rgba(99, 102, 241, 0.3)",
+                  }}
+                >
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#818cf8", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+                    Architectural Mutation Engine
+                  </div>
+                  <h3 style={{ fontSize: 16, fontWeight: 800, marginBottom: 8, color: "var(--text-primary)" }}>
+                    Apply Recommendations &amp; Mutate Architecture into V2
+                  </h3>
+                  <p style={{ fontSize: 13, color: "var(--text-secondary)", maxWidth: 520, margin: "0 auto 18px", lineHeight: 1.5 }}>
+                    ArchitectureModifier will programmatically evolve the architecture graph, adhering to all hard constraints while adding required verification nodes.
+                  </p>
+                  <button
+                    onClick={handleApplyRecommendationAndEvolve}
+                    disabled={isEvolving}
+                    className="btn btn-primary"
+                    style={{ padding: "10px 22px" }}
+                  >
+                    {isEvolving ? (
+                      <><span className="spinner" /> Mutating Architecture…</>
+                    ) : (
+                      "Apply Recommendation & Mutate Graph →"
+                    )}
+                  </button>
+                </div>
+              ) : (
+                <div className="card" style={{ padding: "18px 20px", textAlign: "center" }}>
+                  <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                    No architectural mutation recommended. The current architecture satisfied evaluation criteria.
+                  </span>
+                </div>
+              )
             )}
           </div>
 
-          {/* RIGHT COLUMN: Real-Time Execution Log & Evaluation Trigger */}
+          {/* RIGHT: Real-Time Execution Timeline & Actions */}
           <div
             style={{
               position: "sticky",
-              top: 80,
-              height: "calc(100vh - 110px)",
+              top: 76,
+              height: "calc(100vh - 100px)",
               display: "flex",
               flexDirection: "column",
             }}
           >
             <div
               className="card"
-              style={{ padding: "18px 18px 0", flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}
+              style={{
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+                borderRadius: 12,
+                border: "1px solid var(--border)",
+              }}
             >
-              <SectionHeader
-                icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>}
-                color="#38bdf8"
-                title={`Agent Execution Log (Run #${execData?.run_number || runNumber})`}
-                meta={execData ? `${execData.agent_logs?.length ?? 0} agents executed` : "Executing…"}
-              />
+              <div
+                style={{
+                  padding: "14px 18px",
+                  borderBottom: "1px solid var(--border)",
+                }}
+              >
+                <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }}>
+                  Execution Trace (Run #{execData?.run_number || runNumber})
+                </h3>
+                <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
+                  {isStreaming
+                    ? "Streaming live telemetry from LangGraph…"
+                    : execData
+                    ? `${execData.agent_logs?.length ?? 0} agents · ${events.length} lifecycle events`
+                    : "Awaiting execution"}
+                </div>
+              </div>
 
-              {/* Scrollable log */}
+              {/* Live Execution Telemetry Header */}
+              {execData && (
+                <div style={{ padding: "12px 16px 8px" }}>
+                  <LiveExecutionStatus
+                    executionId={execData.execution_id}
+                    status={execData.status}
+                    stage={events.length > 0 ? events[events.length - 1].stage : "agent_execution"}
+                    eventCount={events.length}
+                    connectionStatus={streamState}
+                    durationSeconds={execData.duration_seconds}
+                    error={execData.error}
+                  />
+                </div>
+              )}
+
+              {/* Scrollable Timeline */}
               <div
                 style={{
                   flex: 1,
                   overflowY: "auto",
-                  marginTop: 14,
-                  paddingRight: 4,
-                  paddingBottom: 18,
+                  padding: "0 16px 16px",
                 }}
               >
-                {execData ? (
-                  <ExecutionTimeline logs={execData.agent_logs} />
+                {execData || events.length > 0 ? (
+                  <ExecutionTimeline
+                    events={events}
+                    logs={execData?.agent_logs}
+                    isStreaming={isStreaming}
+                  />
                 ) : (
-                  <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, color: "var(--text-muted)" }}>
-                    <span className="spinner" style={{ width: 28, height: 28, borderWidth: 3 }} />
-                    <p style={{ fontSize: 13 }}>Executing multi-agent LangGraph…</p>
+                  <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, color: "var(--text-muted)", padding: 24, textAlign: "center" }}>
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <polygon points="5 3 19 12 5 21 5 3" />
+                    </svg>
+                    <div>
+                      <div style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: 13, marginBottom: 4 }}>
+                        Awaiting Execution
+                      </div>
+                      <p style={{ fontSize: 12, maxWidth: 240, margin: "0 auto 12px" }}>
+                        Run this architecture to stream real-time agent steps and tool calls.
+                      </p>
+                    </div>
+                    {activeTab === "run_1" && (
+                      <button
+                        onClick={handleExecuteV1}
+                        disabled={isExecutingV1}
+                        className="btn btn-primary btn-sm"
+                      >
+                        {isExecutingV1 ? <><span className="spinner" /> Executing…</> : "▶ Run Baseline Architecture"}
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
 
-              {/* Evaluate Button */}
+              {/* Evaluate Button Footer */}
               {execData && !evalData && (
-                <div style={{ padding: "14px 0 18px", borderTop: "1px solid var(--border-soft)", flexShrink: 0 }}>
+                <div style={{ padding: "14px 18px", borderTop: "1px solid var(--border-soft)", background: "var(--bg-card-subtle)" }}>
                   <button
                     onClick={handleEvaluate}
                     disabled={evaluating}
                     className="btn btn-emerald"
-                    style={{ width: "100%", padding: "9px" }}
+                    style={{ width: "100%", padding: "10px" }}
                   >
                     {evaluating ? (
-                      <><span className="spinner" style={{ width: 15, height: 15, borderTopColor: "#07140e" }} />Evaluating…</>
+                      <><span className="spinner" /> Evaluating &amp; Reflecting…</>
                     ) : (
-                      "Run Evaluation & Reflection →"
+                      "Run Evaluation & Diagnosis →"
                     )}
                   </button>
                 </div>
               )}
 
               {evalData && (
-                <div style={{ padding: "12px 0 18px", borderTop: "1px solid var(--border-soft)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                    <div className="status-dot live" />
-                    <span style={{ fontSize: 12, color: "var(--emerald)", fontWeight: 600 }}>Memory Record Saved</span>
+                <div style={{ padding: "12px 18px", borderTop: "1px solid var(--border-soft)", background: "var(--bg-card-subtle)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span className="status-dot live" />
+                    <span style={{ fontSize: 12, color: "var(--emerald)", fontWeight: 600 }}>
+                      Memory Record Persisted
+                    </span>
                   </div>
-                  <span style={{ fontSize: 11, fontFamily: "monospace", color: "var(--text-muted)" }}>
-                    {evalData.memory_record_id?.slice(0, 10)}…
+                  <span style={{ fontSize: 11, fontFamily: "var(--font-mono, monospace)", color: "var(--text-muted)" }}>
+                    {evalData.memory_record_id?.slice(0, 12)}
                   </span>
                 </div>
               )}
@@ -748,42 +1265,3 @@ export default function RunPage({ params }: { params?: any }) {
     </div>
   );
 }
-
-/* ── Section header helper ───────────────────────────────────────── */
-function SectionHeader({
-  icon,
-  color,
-  title,
-  meta,
-}: {
-  icon: React.ReactNode;
-  color: string;
-  title: string;
-  meta?: string;
-}) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-      <div
-        style={{
-          width: 30,
-          height: 30,
-          borderRadius: 8,
-          background: `${color}18`,
-          border: `1px solid ${color}30`,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color,
-          flexShrink: 0,
-        }}
-      >
-        {icon}
-      </div>
-      <div>
-        <h2 style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.2 }}>{title}</h2>
-        {meta && <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{meta}</p>}
-      </div>
-    </div>
-  );
-}
-

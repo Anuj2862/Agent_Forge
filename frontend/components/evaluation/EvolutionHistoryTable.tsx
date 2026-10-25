@@ -1,18 +1,35 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { getMemoryHistory, MemoryRecord } from "@/lib/api";
 
 export default function EvolutionHistoryTable() {
   const [records, setRecords] = useState<MemoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filterType, setFilterType] = useState<string>("all");
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
-    getMemoryHistory(1, 20)
-      .then((d) => { setRecords(d.records); setLoading(false); })
+    getMemoryHistory(1, 50)
+      .then((d) => {
+        setRecords(d.records || []);
+        setLoading(false);
+      })
       .catch(() => setLoading(false));
   }, []);
+
+  const filteredRecords = useMemo(() => {
+    return records.filter((rec) => {
+      const matchType = filterType === "all" || rec.task_type === filterType;
+      const prompt = rec.task_spec?.user_prompt || rec.user_prompt || "";
+      const matchSearch =
+        !searchTerm.trim() ||
+        rec.task_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        prompt.toLowerCase().includes(searchTerm.toLowerCase());
+      return matchType && matchSearch;
+    });
+  }, [records, filterType, searchTerm]);
 
   if (loading) {
     return (
@@ -24,135 +41,130 @@ export default function EvolutionHistoryTable() {
 
   if (records.length === 0) {
     return (
-      <div
-        className="card"
-        style={{
-          padding: "48px 24px",
-          textAlign: "center",
-          borderStyle: "dashed",
-        }}
-      >
-        <svg style={{ margin: "0 auto 16px", color: "var(--text-muted)" }} width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12 20v-6M6 20V10M18 20V4"/>
-        </svg>
-        <p style={{ fontSize: 14, color: "var(--text-muted)" }}>No runs yet — submit a task from the dashboard.</p>
+      <div className="empty-state">
+        <div className="empty-state-title">No Evolution Memory Logs Found</div>
+        <div className="empty-state-desc">
+          Executed architectures and their evaluated ratings will be recorded here automatically.
+        </div>
+        <Link href="/" className="btn btn-primary btn-sm">
+          + Launch Initial Experiment
+        </Link>
       </div>
     );
   }
 
   return (
-    <div className="card" style={{ overflow: "hidden" }}>
+    <div className="card fade-up">
+      {/* Table Toolbar */}
+      <div
+        style={{
+          padding: "14px 18px",
+          background: "var(--bg-card-subtle)",
+          borderBottom: "1px solid var(--border-soft)",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: 12,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <input
+            type="text"
+            placeholder="Search experiments by prompt or task ID…"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="form-control"
+            style={{ width: 280, fontSize: 12, padding: "6px 10px" }}
+          />
+
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
+            className="form-control"
+            style={{ width: 170, fontSize: 12, padding: "6px 26px 6px 10px" }}
+            aria-label="Filter by task domain"
+          >
+            <option value="all">All Domains</option>
+            <option value="research">Research</option>
+            <option value="data_analysis">Data Analysis</option>
+            <option value="code_generation">Code Generation</option>
+            <option value="general">General</option>
+          </select>
+        </div>
+
+        <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+          Showing <strong>{filteredRecords.length}</strong> of {records.length} experiences
+        </span>
+      </div>
+
       <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+        <table className="research-table">
           <thead>
-            <tr style={{ background: "var(--bg-secondary)", borderBottom: "1px solid var(--border)" }}>
-              {["Task", "Architecture", "Run", "Success", "Recommendation", ""].map((h) => (
-                <th
-                  key={h}
-                  style={{
-                    padding: "11px 16px",
-                    textAlign: "left",
-                    fontSize: 10,
-                    fontWeight: 700,
-                    letterSpacing: ".09em",
-                    textTransform: "uppercase",
-                    color: "var(--text-muted)",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {h}
-                </th>
-              ))}
+            <tr>
+              <th>Task Domain &amp; ID</th>
+              <th>Task Specification</th>
+              <th>Architecture</th>
+              <th style={{ textAlign: "center" }}>Run</th>
+              <th style={{ textAlign: "center" }}>Composite Rating</th>
+              <th>Recommendation Summary</th>
+              <th style={{ textAlign: "right" }}>Inspect</th>
             </tr>
           </thead>
           <tbody>
-            {records.map((rec, i) => {
+            {filteredRecords.map((rec) => {
               const rating = rec.success_rating;
-              const ratingColor = rating >= 0.8 ? "var(--emerald)" : rating >= 0.6 ? "var(--amber)" : "var(--rose)";
+              const prompt = rec.task_spec?.user_prompt || rec.user_prompt || "Multi-agent research task";
+              const targetTaskId = rec.task_spec?.task_id || rec.task_id;
+
               return (
-                <tr
-                  key={rec.record_id}
-                  style={{
-                    borderBottom: i < records.length - 1 ? "1px solid var(--border-soft)" : "none",
-                    transition: "background .12s",
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-secondary)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                >
-                  <td style={{ padding: "14px 16px" }}>
-                    <div style={{ fontWeight: 600, color: "var(--text-primary)", marginBottom: 3 }}>
+                <tr key={rec.record_id}>
+                  <td>
+                    <div style={{ fontWeight: 600, color: "var(--text-primary)", marginBottom: 2 }}>
                       {rec.task_type.replace(/_/g, " ")}
                     </div>
-                    <div style={{ fontSize: 10, fontFamily: "monospace", color: "var(--text-muted)" }}>
-                      {(rec.task_spec?.task_id || rec.task_id).slice(0, 12)}…
-                    </div>
+                    <code style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                      {targetTaskId}
+                    </code>
                   </td>
-                  <td style={{ padding: "14px 16px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                      <span className="badge badge-violet">{rec.topology}</span>
+
+                  <td style={{ maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    &ldquo;{prompt}&rdquo;
+                  </td>
+
+                  <td>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span className="badge badge-indigo">{rec.topology}</span>
                       <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{rec.agent_count} agents</span>
                     </div>
                   </td>
-                  <td style={{ padding: "14px 16px", textAlign: "center" }}>
+
+                  <td style={{ textAlign: "center", fontFamily: "var(--font-mono, monospace)" }}>
+                    <span className={rec.run_number > 1 ? "badge badge-emerald" : "badge badge-slate"}>
+                      #{rec.run_number}
+                    </span>
+                  </td>
+
+                  <td style={{ textAlign: "center" }}>
                     <span
                       style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        width: 24,
-                        height: 24,
-                        borderRadius: "50%",
-                        background: rec.run_number > 1 ? "rgba(16,185,129,0.12)" : "var(--bg-secondary)",
-                        border: rec.run_number > 1 ? "1px solid rgba(16,185,129,0.25)" : "1px solid var(--border)",
-                        fontSize: 11,
+                        fontSize: 13,
                         fontWeight: 800,
-                        color: rec.run_number > 1 ? "var(--emerald)" : "var(--text-muted)",
+                        fontFamily: "var(--font-mono, monospace)",
+                        color: rating >= 0.8 ? "#34d399" : rating >= 0.6 ? "#fbbf24" : "#fb7185",
                       }}
                     >
-                      {rec.run_number}
+                      {rating !== undefined ? `${(rating * 100).toFixed(0)}%` : "N/A"}
                     </span>
                   </td>
-                  <td style={{ padding: "14px 16px", textAlign: "center" }}>
-                    <span
-                      style={{
-                        fontSize: 14,
-                        fontWeight: 800,
-                        fontFamily: "monospace",
-                        color: ratingColor,
-                      }}
-                    >
-                      {(rating * 100).toFixed(0)}%
-                    </span>
+
+                  <td style={{ maxWidth: 240, fontSize: 12, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {rec.recommendation_summary || "—"}
                   </td>
-                  <td style={{ padding: "14px 16px", maxWidth: 260 }}>
-                    <span
-                      style={{
-                        fontSize: 12,
-                        color: "var(--text-muted)",
-                        display: "-webkit-box",
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: "vertical",
-                        overflow: "hidden",
-                      }}
-                    >
-                      {rec.recommendation_summary || "—"}
-                    </span>
-                  </td>
-                  <td style={{ padding: "14px 16px", textAlign: "right" }}>
-                    <Link
-                      href={`/run/${rec.task_spec?.task_id || rec.task_id}`}
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 600,
-                        color: "#818cf8",
-                        textDecoration: "none",
-                        padding: "4px 10px",
-                        borderRadius: 6,
-                        border: "1px solid rgba(99,102,241,0.2)",
-                        transition: "background .12s",
-                      }}
-                    >
-                      View
+
+                  <td style={{ textAlign: "right" }}>
+                    <Link href={`/run/${targetTaskId}`} className="btn btn-secondary btn-sm" style={{ fontSize: 11 }}>
+                      Workbench →
                     </Link>
                   </td>
                 </tr>

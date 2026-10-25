@@ -9,6 +9,8 @@ from typing import List, Dict, Any, Optional, Set
 from pydantic import ValidationError
 from app.schemas.architecture import ArchitectureSpec, AgentConfigSchema, Connection, TopologyType
 from app.schemas.reflection import ReflectionResult, ArchitecturalRecommendation
+from app.schemas.task import TaskSpec
+from app.schemas.validator import ArchitectureValidator
 from app.core.logging import logger
 
 
@@ -19,6 +21,7 @@ class ArchitectureModifier:
         self,
         architecture: ArchitectureSpec,
         recommendations: List[ArchitecturalRecommendation],
+        task_spec: Optional[TaskSpec] = None,
     ) -> ArchitectureSpec:
         """
         Convenience method to apply a list of recommendations directly.
@@ -30,14 +33,17 @@ class ArchitectureModifier:
             reflection_summary="Applied architectural recommendations.",
             recommendations=recommendations,
         )
-        return self.mutate_architecture(architecture, dummy_reflection)
+        return self.mutate_architecture(architecture, dummy_reflection, task_spec=task_spec)
 
     def mutate_architecture(
-        self, base_architecture: ArchitectureSpec, reflection: ReflectionResult
+        self,
+        base_architecture: ArchitectureSpec,
+        reflection: ReflectionResult,
+        task_spec: Optional[TaskSpec] = None,
     ) -> ArchitectureSpec:
         """
         Applies reflection recommendations to create an improved, validated ArchitectureSpec.
-        Rejects invalid mutations to guarantee graph safety.
+        Rejects invalid mutations to guarantee graph safety and constraint compliance.
         """
         logger.info(
             f"[MODIFIER] Mutating architecture {base_architecture.architecture_id} "
@@ -74,6 +80,27 @@ class ArchitectureModifier:
 
             try:
                 if action in ("ADD_AGENT", "ADD_VERIFICATION_STAGE"):
+                    # Hard constraint check: max_agents limit
+                    if task_spec and task_spec.max_agents is not None and len(mutated_agents) >= task_spec.max_agents:
+                        logger.warning(
+                            f"[MODIFIER] Constraint active: max_agents={task_spec.max_agents} reached. "
+                            f"Refusing to spawn new agent for {action}. Upgrading terminal agent instead."
+                        )
+                        # Instead of violating max_agents, upgrade the terminal agent with verification capability
+                        if mutated_agents:
+                            terminal_agent = mutated_agents[-1]
+                            rec_role = details.get("role") or "Verifier"
+                            if "Verifier" not in terminal_agent.role:
+                                terminal_agent.role = f"{terminal_agent.role} + {rec_role}"
+                                terminal_agent.system_prompt += (
+                                    " CRITICAL: You must rigorously verify all outputs, facts, and logical "
+                                    "consistency before completing your response."
+                                )
+                                applied_modifications.append(
+                                    f"Upgraded {terminal_agent.agent_id} with verification capabilities to respect max_agents={task_spec.max_agents}"
+                                )
+                        continue
+
                     success, desc = self._apply_add_agent(mutated_agents, mutated_connections, details)
                     if success:
                         applied_modifications.append(desc)
@@ -84,6 +111,10 @@ class ArchitectureModifier:
                         applied_modifications.append(desc)
 
                 elif action == "ADD_TOOL":
+                    tool_name = details.get("tool") or details.get("tool_name")
+                    if task_spec and task_spec.forbidden_tools and tool_name in task_spec.forbidden_tools:
+                        logger.warning(f"[MODIFIER] Refusing to add forbidden tool '{tool_name}' per task hard constraint.")
+                        continue
                     success, desc = self._apply_add_tool(mutated_agents, details)
                     if success:
                         applied_modifications.append(desc)
@@ -129,7 +160,7 @@ class ArchitectureModifier:
 
         updated_reasoning = (
             f"{base_architecture.meta_reasoning or 'Base architecture.'} "
-            f"Evolved via Member 3 Reflection: {'; '.join(applied_modifications)}."
+            f"Evolved via Member 3 Reflection: {'; '.join(applied_modifications) if applied_modifications else 'Preserved structure within hard constraints'}."
         )
 
         try:
@@ -140,7 +171,17 @@ class ArchitectureModifier:
                 agents=mutated_agents,
                 connections=mutated_connections,
                 meta_reasoning=updated_reasoning,
+                version="v2",
+                parent_architecture_id=base_architecture.architecture_id,
             )
+
+            # Centralized validation check with TaskSpec constraints
+            val_res = ArchitectureValidator.validate(evolved_arch, task_spec=task_spec)
+            if not val_res.is_valid:
+                err_msg = "; ".join(f"[{err.code}] {err.message}" for err in val_res.errors)
+                logger.error(f"[VALIDATION] Candidate mutated architecture failed constraint validation: {err_msg}")
+                return base_architecture
+
             logger.info(
                 f"[VALIDATION] Improved architecture valid! Created {new_arch_id} with "
                 f"{len(evolved_arch.agents)} agents and {len(evolved_arch.connections)} connections."

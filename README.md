@@ -349,20 +349,25 @@ python generate_demo_architectures.py
 # Run the full end-to-end pipeline manually
 python test_meta_controller_manual.py
 
-# Run all 19 automated tests
+# Run all 142 automated tests (unit, integration, security, constraints, and persistence)
 pytest -v
 ```
 
-### Test Coverage
+### Test Coverage (142 Automated Tests)
 
-| Test File | Tests | What It Covers |
+| Test Module | Tests | What It Covers |
 | :--- | :--- | :--- |
-| `test_task_analyzer.py` | 1 | Pydantic-validated `TaskSpec` from mocked Gemini |
-| `test_task_decomposer.py` | 1 | Valid `List[Subtask]` from mocked Gemini |
-| `test_capability_extractor.py` | 1 | Unique capability list from mocked Gemini |
-| `test_complexity_analyzer.py` | 4 | LOW / MEDIUM / HIGH classification + empty prompt error |
-| `test_architecture_generator.py` | 5 | Parallel & pipeline topologies, agent preservation, error handling |
-| `test_meta_controller.py` | 2 | Full orchestration order (mocked) + empty prompt rejection |
+| `test_constraints_and_decision.py` | 4 | Subtask clustering on `max_agents`, forbidden tool filtering, decision policy REJECTED on constraint breach & ACCEPTED on quality gain |
+| `test_python_sandbox_security.py` | 8 | Isolated subprocess security: blocked os/subprocess/socket, builtins open denial, introspection escapes (`__subclasses__`/`__globals__`), infinite loop timeouts, credential strip |
+| `test_restart_persistence.py` | 1 | Database-backed state recovery across server restarts for tasks, v1/v2 architectures, executions, evaluations, reflections, and decisions |
+| `test_real_reflection_evolution.py` | 1 | End-to-end diagnosis of unverified execution, mutation into v2 with verification specialist, and LangGraph re-execution |
+| `test_evolution_e2e.py` | 6 | Multi-run task evolution, reflection generation, graph mutation, and comparison API |
+| `test_api_integration.py` | 24 | FastAPI endpoints for tasks, execution, evaluation, architectures, and memory |
+| `test_memory_store.py` & `test_memory_retriever.py` | 17 | SQLAlchemy async CRUD, pagination, task history retrieval, and experience ranking |
+| `test_tool_planner.py` & `test_tools.py` | 28 | Capability-to-tool resolution, registry operations, isolated Python tool, and offline web search handling |
+| `test_schemas.py` | 7 | Pydantic v2 schemas and validation for tasks, architectures, execution logs, and evaluation metrics |
+| `test_complexity_analyzer.py` & `test_architecture_generator.py` | 9 | Complexity heuristic scoring, topology selection, and pipeline/parallel generation |
+| Integration suites (`test_integration_*.py`) | 37 | Cross-member orchestration across controller, execution, evaluation, and memory layers |
 
 > See [`docs/member-1-architecture-examples.md`](docs/member-1-architecture-examples.md) for real generated `ArchitectureSpec` examples.
 

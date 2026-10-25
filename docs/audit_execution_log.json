@@ -1,0 +1,107 @@
+{
+  "timestamp": "2026-10-25 16:08:19 UTC",
+  "dag_generation": {
+    "parallel_topology": "parallel",
+    "parallel_connections_count": 0,
+    "pipeline_topology": "pipeline",
+    "pipeline_connections": [
+      "st_spec->st_impl",
+      "st_impl->st_test"
+    ],
+    "hybrid_topology": "hybrid",
+    "hybrid_connections": [
+      "intel_1->synthesis",
+      "intel_2->synthesis"
+    ],
+    "verification_in_last_prompt": true,
+    "clustered_agent_count": 2,
+    "max_agents_respected": true,
+    "cycle_rejected": true,
+    "cycle_errors": [
+      "[CYCLE_DETECTED] Graph topology contains an illegal cycle: a2 -> a1 -> a2."
+    ]
+  },
+  "semantic_memory": {
+    "sim_paraphrase_score": 0.4763,
+    "sim_keyword_overlap_unrelated": 0.1667,
+    "sim_zero_overlap_semantic_paraphrase": 0.0772,
+    "is_learned_embedding": false,
+    "representation_type": "Normalized Term Frequency (TF) Cosine Vector with Stopword Filtering (Lexical Vector)"
+  },
+  "quality_scorer": {
+    "repetitive_long_text_score": 0.615,
+    "repetitive_substance_score": 0.6,
+    "repetitive_clarity_score": 0.95,
+    "empty_headings_score": 0.645,
+    "empty_headings_substance": 0.4,
+    "empty_headings_structure": 0.8,
+    "unverified_text_constraint_score": 0.65,
+    "unverified_total_score": 0.7525,
+    "contradictory_consistency_score": 0.6,
+    "contradictory_total_score": 0.7225,
+    "high_quality_total_score": 0.9175,
+    "high_quality_breakdown": {
+      "relevance": 0.88,
+      "usefulness": 0.85,
+      "structure": 1.0,
+      "clarity": 0.95,
+      "consistency": 1.0,
+      "constraint_adherence": 0.85,
+      "deterministic_score": 0.9175,
+      "llm_evaluated": false
+    }
+  },
+  "evolution_and_e2e": {
+    "baseline_version": "v1",
+    "baseline_agent_count": 2,
+    "baseline_agents": [
+      "researcher",
+      "reporter"
+    ],
+    "baseline_exec_status": "success",
+    "baseline_exec_time": 0.004,
+    "baseline_metrics": {
+      "accuracy": 0.4,
+      "quality": 0.8475,
+      "verification_status": "Unverified",
+      "overall_score": 0.8269
+    },
+    "diagnosed_issues": [
+      "insufficient_verification"
+    ],
+    "proposed_actions": [
+      "ADD_AGENT"
+    ],
+    "candidate_version": "v2",
+    "candidate_parent_id": "architecture_9f1972db",
+    "candidate_agent_count": 3,
+    "candidate_agents": [
+      "researcher",
+      "reporter",
+      "fact_verification_agent"
+    ],
+    "candidate_validation_is_valid": true,
+    "candidate_validation_errors": [],
+    "candidate_exec_status": "success",
+    "candidate_exec_time": 0.004,
+    "candidate_metrics": {
+      "accuracy": 0.5,
+      "quality": 0.8025,
+      "verification_status": "Unverified",
+      "overall_score": 0.8406
+    },
+    "evolution_decision": "INCONCLUSIVE",
+    "evolution_decision_reason_codes": [
+      "MARGINAL_SCORE_DELTA"
+    ],
+    "evolution_decision_rationale": "Candidate V2 performance delta (+1.37%) does not meet the +2.00% threshold for definitive acceptance.",
+    "evolution_score_delta": 0.0137,
+    "rejection_test_outcome": "REJECTED",
+    "rejection_test_reason_codes": [
+      "MATERIAL_SCORE_REGRESSION"
+    ],
+    "rejection_test_rationale": "Overall quality score regressed by -57.69%.",
+    "persisted_records_count": 1,
+    "persisted_record_id": "rec_e2e_audit_task_ev_01_v2"
+  }
+}

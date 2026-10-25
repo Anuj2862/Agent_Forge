@@ -6,32 +6,40 @@ import {
   api,
   listEvaluations,
   listTasks,
+  EvaluationDetail,
+  EvaluationMetrics,
+  TaskDetail,
 } from "@/lib/api";
 import MetricsPanel from "@/components/evaluation/MetricsPanel";
+import TaskSelector from "@/components/TaskSelector";
+import KPICard from "@/components/KPICard";
 
 export default function EvaluationPage() {
-  const [evaluations, setEvaluations] = useState<any[]>([]);
+  const [tasks, setTasks] = useState<TaskDetail[]>([]);
+  const [selectedTaskId, setSelectedTaskId] = useState<string>("");
+  const [evaluations, setEvaluations] = useState<EvaluationDetail[]>([]);
   const [selectedEvalId, setSelectedEvalId] = useState<string>("");
-  const [evalData, setEvalData] = useState<any>(null);
+  const [evalData, setEvalData] = useState<EvaluationDetail | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    async function loadEvaluations() {
+    async function loadData() {
       try {
         setLoading(true);
-        const data = await listEvaluations();
-        if (data.evaluations && data.evaluations.length > 0) {
-          setEvaluations(data.evaluations);
-          setSelectedEvalId(data.evaluations[0].evaluation_id);
-        } else {
-          // Check tasks for evaluation data
-          const tasksData = await listTasks();
-          if (tasksData.tasks && tasksData.tasks.length > 0) {
-            const firstTask = await api.get(`/tasks/${tasksData.tasks[0].task_id}`);
-            if (firstTask.data.latest_evaluation) {
-              setEvalData(firstTask.data.latest_evaluation);
-            }
-          }
+        const [tasksRes, evalsRes] = await Promise.all([
+          listTasks().catch(() => ({ tasks: [], total: 0 })),
+          listEvaluations().catch(() => ({ evaluations: [], total: 0 })),
+        ]);
+
+        if (tasksRes.tasks && tasksRes.tasks.length > 0) {
+          setTasks(tasksRes.tasks);
+          setSelectedTaskId(tasksRes.tasks[0].task_id);
+        }
+
+        if (evalsRes.evaluations && evalsRes.evaluations.length > 0) {
+          setEvaluations(evalsRes.evaluations);
+          setSelectedEvalId(evalsRes.evaluations[0].evaluation_id || "");
+          setEvalData(evalsRes.evaluations[0]);
         }
       } catch (err) {
         console.error("Failed to load evaluations", err);
@@ -39,9 +47,33 @@ export default function EvaluationPage() {
         setLoading(false);
       }
     }
-    loadEvaluations();
+    loadData();
   }, []);
 
+  // When selected task changes, attempt to load task's latest evaluation
+  useEffect(() => {
+    if (!selectedTaskId) return;
+    async function loadTaskEval() {
+      try {
+        const res = await api.get(`/tasks/${selectedTaskId}`);
+        if (res.data.latest_evaluation) {
+          setEvalData(res.data.latest_evaluation);
+          if (res.data.latest_evaluation.evaluation_id) {
+            setSelectedEvalId(res.data.latest_evaluation.evaluation_id);
+          }
+        } else if (res.data.latest_evaluation_id) {
+          const evRes = await api.get(`/evaluation/${res.data.latest_evaluation_id}`);
+          setEvalData(evRes.data);
+          setSelectedEvalId(res.data.latest_evaluation_id);
+        }
+      } catch (err) {
+        console.error("Failed to load task evaluation", err);
+      }
+    }
+    loadTaskEval();
+  }, [selectedTaskId]);
+
+  // When evaluation ID changes directly
   useEffect(() => {
     if (!selectedEvalId) return;
     async function loadDetails() {
@@ -57,194 +89,176 @@ export default function EvaluationPage() {
 
   if (loading) {
     return (
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "50vh", gap: 16 }}>
-        <span className="spinner" style={{ width: 36, height: 36 }} />
-        <p style={{ color: "var(--text-muted)", fontSize: 13 }}>Loading evaluation benchmarks…</p>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "50vh", gap: 14 }}>
+        <span className="spinner" style={{ width: 32, height: 32, borderWidth: 3 }} />
+        <p style={{ color: "var(--text-muted)", fontSize: 13 }}>Loading evaluation metrics and benchmarks…</p>
       </div>
     );
   }
 
   const result = evalData?.evaluation_result || evalData;
-  const metrics = result?.metrics || {};
-  const breakdown = result?.breakdown || {};
+  const metrics: EvaluationMetrics & { verification_status?: string } = result?.metrics || {
+    task_success: 0,
+    quality: 0,
+    completeness: 0,
+    execution_time_seconds: 0,
+    agent_count: 0,
+    tool_call_count: 0,
+    accuracy: 0,
+    verification_status: "Unverified",
+  };
+
+  const hasRating = evalData?.success_rating !== undefined || metrics.overall_score !== undefined;
+  const ratingValue = evalData?.success_rating ?? metrics.overall_score ?? 0;
 
   return (
-    <div style={{ maxWidth: 1320, margin: "0 auto", padding: "24px 20px 80px" }}>
-      {/* Top selector & Action bar */}
-      <div
-        className="fade-up"
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: 16,
-          marginBottom: 24,
-          padding: "16px 20px",
-          background: "var(--bg-card)",
-          borderRadius: 12,
-          border: "1px solid var(--border)",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase" }}>
-            Evaluation Record:
-          </span>
-          {evaluations.length > 0 ? (
-            <select
-              value={selectedEvalId}
-              onChange={(e) => setSelectedEvalId(e.target.value)}
-              style={{
-                background: "var(--bg-secondary)",
-                color: "#f1f5f9",
-                border: "1px solid var(--border)",
-                borderRadius: 6,
-                padding: "6px 12px",
-                fontSize: 13,
-                cursor: "pointer",
-              }}
-            >
-              {evaluations.map((ev) => (
-                <option key={ev.evaluation_id} value={ev.evaluation_id}>
-                  {ev.evaluation_id} (Score: {((ev.success_rating || 0.8) * 100).toFixed(0)}% · Run #{ev.run_number || 1})
-                </option>
-              ))}
-            </select>
-          ) : (
-            <span style={{ fontSize: 13, color: "var(--text-muted)" }}>No evaluations recorded yet</span>
-          )}
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {evalData?.task_id && (
-            <>
-              <Link
-                href={`/diagnosis?task_id=${evalData.task_id}`}
-                className="btn btn-secondary"
-                style={{ fontSize: 12, padding: "7px 14px" }}
-              >
-                Inspect Reflection & Diagnosis →
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* Target Task Selector */}
+      <TaskSelector
+        tasks={tasks}
+        selectedTaskId={selectedTaskId}
+        onSelectTaskId={setSelectedTaskId}
+        label="Evaluation Target"
+        actionRight={
+          evalData?.task_id ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {evaluations.length > 1 && (
+                <select
+                  value={selectedEvalId}
+                  onChange={(e) => setSelectedEvalId(e.target.value)}
+                  className="form-control"
+                  style={{ fontSize: 11, fontFamily: "var(--font-mono, monospace)", padding: "4px 24px 4px 8px" }}
+                  aria-label="Select evaluation ID"
+                >
+                  {evaluations.map((ev) => (
+                    <option key={ev.evaluation_id} value={ev.evaluation_id}>
+                      Eval: {ev.evaluation_id} (Run #{ev.run_number || 1})
+                    </option>
+                  ))}
+                </select>
+              )}
+              <Link href={`/diagnosis?task_id=${evalData.task_id}`} className="btn btn-secondary btn-sm">
+                Inspect Diagnosis →
               </Link>
-              <Link
-                href={`/run/${evalData.task_id}`}
-                className="btn btn-primary"
-                style={{ fontSize: 12, padding: "7px 14px" }}
-              >
-                Task Run Dashboard
+              <Link href={`/run/${evalData.task_id}`} className="btn btn-primary btn-sm">
+                Run Workbench
               </Link>
-            </>
-          )}
-        </div>
-      </div>
-
-      {result ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-          {/* Top Score Cards */}
-          <div
-            className="fade-up"
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
-              gap: 16,
-            }}
-          >
-            <div className="card" style={{ padding: "18px 20px" }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase" }}>
-                Overall Quality Rating
-              </div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: "#34d399", marginTop: 4 }}>
-                {((evalData.success_rating || metrics.overall_score || 0.74) * 100).toFixed(1)}%
-              </div>
-              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
-                Combined weighted objective score
-              </div>
             </div>
+          ) : undefined
+        }
+      />
 
-            <div className="card" style={{ padding: "18px 20px" }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase" }}>
-                Task Success Rate
-              </div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: "#38bdf8", marginTop: 4 }}>
-                {((metrics.task_success || 0.6) * 100).toFixed(0)}%
-              </div>
-              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
-                Goal completion & subtask fulfillment
-              </div>
-            </div>
+      {evalData && result ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          {/* Top Translucent Score Cards */}
+          <div className="kpi-grid fade-up">
+            <KPICard
+              label="Overall Composite Rating"
+              value={hasRating ? `${(ratingValue * 100).toFixed(1)}%` : "N/A"}
+              subtext="Multi-metric weighted objective"
+              accentColor="#34D399"
+              icon={
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                </svg>
+              }
+            />
 
-            <div className="card" style={{ padding: "18px 20px" }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase" }}>
-                Output Coherence
-              </div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: "#818cf8", marginTop: 4 }}>
-                {((metrics.quality || 0.89) * 100).toFixed(0)}%
-              </div>
-              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
-                Structural clarity & relevance
-              </div>
-            </div>
+            <KPICard
+              label="Task Success Rate"
+              value={metrics.task_success !== undefined ? `${(metrics.task_success * 100).toFixed(0)}%` : "N/A"}
+              subtext="Subtask fulfillment & goal completion"
+              accentColor="#22D3EE"
+              icon={
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              }
+            />
 
-            <div className="card" style={{ padding: "18px 20px" }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase" }}>
-                Factual Accuracy
-              </div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: (metrics.accuracy || 0.5) >= 0.8 ? "#34d399" : "#fbbf24", marginTop: 4 }}>
-                {((metrics.accuracy || 0.5) * 100).toFixed(0)}%
-              </div>
-              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
-                {metrics.verification_status || "Unverified"}
-              </div>
-            </div>
+            <KPICard
+              label="Output Coherence"
+              value={metrics.quality !== undefined ? `${(metrics.quality * 100).toFixed(0)}%` : "N/A"}
+              subtext="Structural clarity & relevance"
+              accentColor="#A78BFA"
+              icon={
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                </svg>
+              }
+            />
+
+            <KPICard
+              label="Factual Accuracy"
+              value={metrics.accuracy !== undefined ? `${(metrics.accuracy * 100).toFixed(0)}%` : "N/A"}
+              subtext={metrics.verification_status || "Standard Verification"}
+              accentColor={metrics.accuracy !== undefined && metrics.accuracy >= 0.8 ? "#34D399" : "#FBBF24"}
+              icon={
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                </svg>
+              }
+            />
           </div>
 
           {/* Metric Dimensions Panel */}
-          <div className="card fade-up" style={{ padding: "24px" }}>
-            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 18 }}>
-              Multi-Dimensional Quality Evaluation
-            </h3>
-            <MetricsPanel metrics={metrics} />
+          <div className="card fade-up">
+            <div className="card-header">
+              <div className="card-title">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                </svg>
+                Multi-Dimensional Objective Rubric
+              </div>
+              <span className="badge badge-indigo">
+                Run #{evalData.run_number || 1}
+              </span>
+            </div>
+
+            <div style={{ padding: "20px" }}>
+              <MetricsPanel metrics={metrics} />
+            </div>
           </div>
 
-          {/* Rubric Breakdown Grid */}
-          <div
-            className="fade-up"
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: 20,
-            }}
-          >
+          {/* Evaluation Feedback and Memory Attribution */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             {/* Feedback Summary */}
-            <div className="card" style={{ padding: "20px" }}>
-              <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: "#818cf8" }}>
+            <div className="card fade-up" style={{ padding: "18px 20px" }}>
+              <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, color: "#818cf8" }}>
                 Evaluator Feedback Summary
               </h4>
-              <p style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.6 }}>
-                {result.feedback_summary ||
-                  "High requirement and subtask coverage; clear structure and strong prompt relevance. Independent verification stage required to eliminate hallucination risks."}
+              <p style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.5 }}>
+                {(result as { feedback_summary?: string })?.feedback_summary ||
+                  "Detailed subtask coverage and goal fulfillment recorded. Review diagnostic reflections to inspect architectural opportunities."}
               </p>
             </div>
 
-            {/* Verification Status */}
-            <div className="card" style={{ padding: "20px" }}>
-              <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: "#34d399" }}>
-                Evolutionary Memory Status
+            {/* Verification & Memory Status */}
+            <div className="card fade-up" style={{ padding: "18px 20px" }}>
+              <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, color: "#34d399" }}>
+                Evolutionary Memory Attribution
               </h4>
-              <p style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.6 }}>
-                This evaluation outcome is recorded into SQLite Evolutionary Memory under record ID:{" "}
-                <code style={{ color: "#34d399" }}>{evalData.memory_record_id || "mem_f4b460be"}</code>. It is leveraged by the Meta Controller to retrieve proven architectures for future tasks.
+              <p style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.5 }}>
+                {evalData.memory_record_id ? (
+                  <>
+                    Indexed into SQLite memory store under Record ID:{" "}
+                    <code style={{ color: "#34d399" }}>{evalData.memory_record_id}</code>. Accessible by the Meta Controller to bias future synthesis toward proven topologies.
+                  </>
+                ) : (
+                  "Evaluation outcome registered in session state. Persisted upon full run completion."
+                )}
               </p>
             </div>
           </div>
         </div>
       ) : (
-        <div className="card" style={{ padding: "48px 24px", textAlign: "center" }}>
-          <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>No Evaluation Records Found</h3>
-          <p style={{ color: "var(--text-muted)", fontSize: 13, marginBottom: 20 }}>
-            Execute a task from the home page to compute multi-metric evaluation ratings.
-          </p>
-          <Link href="/" className="btn btn-primary" style={{ display: "inline-block" }}>
-            + Create New Task
+        <div className="empty-state">
+          <div className="empty-state-title">No Evaluation Benchmark Found</div>
+          <div className="empty-state-desc">
+            The selected task has not been evaluated yet. Run an execution and evaluate to generate performance ratings.
+          </div>
+          <Link href={`/run/${selectedTaskId}`} className="btn btn-primary btn-sm">
+            Launch Run Workbench →
           </Link>
         </div>
       )}

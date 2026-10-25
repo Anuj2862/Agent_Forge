@@ -4,7 +4,7 @@ Shared Pydantic Schemas for Architecture Reflection & Evolution Recommendations.
 
 from enum import Enum
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class IssueCategory(str, Enum):
@@ -21,6 +21,7 @@ class IssueCategory(str, Enum):
     DEPENDENCY_FAILURE = "dependency_failure"
     EXCESSIVE_ITERATIONS = "excessive_iterations"
     INCOMPLETE_TASK_COVERAGE = "incomplete_task_coverage"
+    CONSTRAINT_VIOLATION = "constraint_violation"
 
 
 class ReflectionIssue(BaseModel):
@@ -29,7 +30,7 @@ class ReflectionIssue(BaseModel):
     affected_agent_id: Optional[str] = Field(default=None, description="Specific agent ID if issue is localized")
     severity: str = Field(default="medium", description="Severity level: low, medium, high, critical")
     evidence: Optional[str] = Field(default=None, description="Concrete evidence observed in execution trace or output")
-    affected_component: str = Field(default="architecture", description="Affected component or layer (architecture, agent, tools, topology)")
+    affected_component: str = Field(default="architecture", description="Affected component or layer")
 
 
 class ArchitecturalRecommendation(BaseModel):
@@ -52,8 +53,8 @@ class ReflectionResult(BaseModel):
     )
     reflection_summary: str = Field(..., description="High-level synthesis of reflection findings")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "reflection_id": "refl_001",
                 "task_id": "task_001",
@@ -64,7 +65,7 @@ class ReflectionResult(BaseModel):
                         "description": "Output lacked cross-reference verification agent step",
                         "severity": "high",
                         "evidence": "Final report contained unverified claims without validation trace",
-                        "affected_component": "architecture"
+                        "affected_component": "architecture",
                     }
                 ],
                 "recommendations": [
@@ -73,13 +74,14 @@ class ReflectionResult(BaseModel):
                         "details": {
                             "role": "Verification Agent",
                             "position": "between analysis and writer",
-                            "tools": ["web_search", "document_retriever"]
+                            "tools": ["web_search", "document_retriever"],
                         },
                         "priority": "high",
                         "reason": "Missing independent verification stage resulted in low accuracy score",
-                        "expected_benefit": "Significantly higher accuracy and verified output claims"
+                        "expected_benefit": "Significantly higher accuracy and verified output claims",
                     }
                 ],
-                "reflection_summary": "Initial 3-agent pipeline had no verification stage. Recommend adding Verification Agent."
+                "reflection_summary": "Initial 2-agent pipeline had no verification stage. Recommend adding Verification Agent.",
             }
         }
+    )

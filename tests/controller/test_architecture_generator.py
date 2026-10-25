@@ -108,3 +108,49 @@ def test_empty_subtasks_raise_error(generator):
 
     with pytest.raises(ValueError):
         generator.generate_architecture(task_spec)
+
+
+def test_hybrid_dag_fan_in_topology_synthesis(generator):
+    """3 subtasks with final synthesis should produce a HYBRID DAG with fan-in connections."""
+    task_spec = TaskSpec(
+        task_id="task_hybrid_test",
+        user_prompt="Gather market data and synthesize recommendations",
+        task_type=TaskType.RESEARCH,
+        complexity=ComplexityLevel.HIGH,
+        subtasks=[
+            Subtask(id="st_1", title="Market Search A", description="Scrape segment A", required_capabilities=["web_search"]),
+            Subtask(id="st_2", title="Market Search B", description="Scrape segment B", required_capabilities=["web_search"]),
+            Subtask(id="st_3", title="Synthesize Executive Report", description="Aggregate and summarize", required_capabilities=[]),
+        ],
+    )
+    arch = generator.generate_architecture(task_spec)
+    assert arch.topology == TopologyType.HYBRID
+    # Fan-in: st_1 -> st_3, st_2 -> st_3
+    assert len(arch.connections) == 2
+    sources = {c.source for c in arch.connections}
+    targets = {c.target for c in arch.connections}
+    assert sources == {"st_1", "st_2"}
+    assert targets == {"st_3"}
+    assert "Hybrid DAG Fan-In" in arch.meta_reasoning
+
+
+def test_architecture_incorporates_memory_topology(generator):
+    """Historical memory with high success rating should influence topology selection."""
+    task_spec = TaskSpec(
+        task_id="task_mem_test",
+        user_prompt="Run deep audit",
+        task_type=TaskType.GENERAL,
+        complexity=ComplexityLevel.MEDIUM,
+        subtasks=[
+            Subtask(id="a", title="Part A", description="Desc", required_capabilities=[]),
+            Subtask(id="b", title="Part B", description="Desc", required_capabilities=[]),
+        ],
+        metadata={
+            "retrieved_memories": [
+                {"record_id": "m1", "success_rating": 0.95, "topology": "parallel"}
+            ]
+        },
+    )
+    arch = generator.generate_architecture(task_spec)
+    assert arch.topology == TopologyType.PARALLEL
+    assert "Informed by 1 prior high-success evolutionary run(s)" in arch.meta_reasoning

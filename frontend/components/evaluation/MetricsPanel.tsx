@@ -1,9 +1,10 @@
 "use client";
 
 import { EvaluationMetrics } from "@/lib/api";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
-interface Props { metrics: EvaluationMetrics; }
+interface Props {
+  metrics: EvaluationMetrics & { verification_status?: string };
+}
 
 function scoreColor(v: number) {
   if (v >= 0.8) return "var(--emerald)";
@@ -11,38 +12,33 @@ function scoreColor(v: number) {
   return "var(--rose)";
 }
 
-const CustomTooltip = ({ active, payload }: any) => {
-  if (!active || !payload?.length) return null;
-  return (
-    <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 12px", fontSize: 12 }}>
-      <span style={{ color: "var(--text-secondary)" }}>{payload[0].name}: </span>
-      <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>{payload[0].value}%</span>
-    </div>
-  );
-};
-
 export default function MetricsPanel({ metrics }: Props) {
-  const accuracyVal = typeof (metrics as any).accuracy === "number"
-    ? Math.round((metrics as any).accuracy * 100)
-    : Math.round(metrics.task_success * 100);
+  const accuracyVal =
+    typeof metrics.accuracy === "number"
+      ? Math.round(metrics.accuracy * 100)
+      : Math.round(metrics.task_success * 100);
 
-  const verificationStatus = (metrics as any).verification_confidence || (
-    metrics.agent_count >= 3 ? "Corroborated" : "Unverified"
-  );
+  const verificationStatus =
+    metrics.verification_confidence ||
+    metrics.verification_status ||
+    (accuracyVal >= 80 ? "Corroborated" : "Unverified Claims");
 
-  const isVerified = verificationStatus.toLowerCase().includes("corroborat") || verificationStatus.toLowerCase().includes("high");
+  const isVerified =
+    verificationStatus.toLowerCase().includes("corroborat") ||
+    verificationStatus.toLowerCase().includes("high") ||
+    verificationStatus.toLowerCase().includes("verified");
 
   const bars = [
-    { name: "Task Success", value: Math.round(metrics.task_success * 100) },
-    { name: "Output Quality", value: Math.round(metrics.quality * 100) },
+    { name: "Task Success Fulfillment", value: Math.round(metrics.task_success * 100) },
+    { name: "Output Coherence & Quality", value: Math.round(metrics.quality * 100) },
     { name: "Factual Accuracy", value: accuracyVal },
-    { name: "Completeness", value: Math.round(metrics.completeness * 100) },
+    { name: "Requirement Completeness", value: Math.round(metrics.completeness * 100) },
   ];
 
   const stats = [
-    { label: "Exec Time",   value: `${metrics.execution_time_seconds.toFixed(1)}s` },
-    { label: "Agents",      value: `${metrics.agent_count}` },
-    { label: "Tool Calls",  value: `${metrics.tool_call_count}` },
+    { label: "Execution Latency", value: `${metrics.execution_time_seconds.toFixed(2)}s` },
+    { label: "Active Agent Team", value: `${metrics.agent_count} Nodes` },
+    { label: "Tool Invocations", value: `${metrics.tool_call_count} Calls` },
   ];
 
   return (
@@ -53,42 +49,45 @@ export default function MetricsPanel({ metrics }: Props) {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "8px 12px",
+          padding: "10px 14px",
           borderRadius: 8,
           background: isVerified ? "rgba(16, 185, 129, 0.08)" : "rgba(245, 158, 11, 0.08)",
           border: `1px solid ${isVerified ? "rgba(16, 185, 129, 0.25)" : "rgba(245, 158, 11, 0.25)"}`,
         }}
       >
-        <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".06em" }}>
-          Verification Status
+        <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em" }}>
+          Factual Verification Audit
         </span>
         <span
           style={{
-            fontSize: 11,
+            fontSize: 12,
             fontWeight: 700,
             color: isVerified ? "#34d399" : "#fbbf24",
             display: "flex",
             alignItems: "center",
-            gap: 5,
+            gap: 6,
           }}
         >
-          {isVerified ? "✓ Corroborated" : "⚠ Unverified Claims"}
+          {isVerified ? "✓ Claims Corroborated" : "⚠ Unverified Factual Claims"}
         </span>
       </div>
-      {/* Score bars */}
+
+      {/* Score Bars */}
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {bars.map(({ name, value }) => {
           const color = scoreColor(value / 100);
           return (
             <div key={name}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
                 <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{name}</span>
-                <span style={{ fontSize: 12, fontWeight: 700, fontFamily: "monospace", color }}>{value}%</span>
+                <span style={{ fontSize: 12, fontWeight: 700, fontFamily: "var(--font-mono, monospace)", color }}>
+                  {value}%
+                </span>
               </div>
               <div className="progress-track">
                 <div
                   className="progress-fill"
-                  style={{ width: `${value}%`, background: color }}
+                  style={{ width: `${Math.min(100, Math.max(0, value))}%`, background: color }}
                 />
               </div>
             </div>
@@ -98,21 +97,25 @@ export default function MetricsPanel({ metrics }: Props) {
 
       <hr className="divider" />
 
-      {/* Stats row */}
+      {/* Metrics Stat Row */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
         {stats.map(({ label, value }) => (
           <div
             key={label}
             style={{
-              background: "var(--bg-secondary)",
+              background: "var(--bg-card-subtle)",
               border: "1px solid var(--border-soft)",
               borderRadius: 8,
               padding: "12px 14px",
               textAlign: "center",
             }}
           >
-            <div style={{ fontSize: 20, fontWeight: 800, fontFamily: "monospace", color: "var(--text-primary)", marginBottom: 4 }}>{value}</div>
-            <div style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".07em" }}>{label}</div>
+            <div style={{ fontSize: 18, fontWeight: 800, fontFamily: "var(--font-mono, monospace)", color: "var(--text-primary)", marginBottom: 2 }}>
+              {value}
+            </div>
+            <div style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em" }}>
+              {label}
+            </div>
           </div>
         ))}
       </div>

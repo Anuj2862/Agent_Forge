@@ -232,3 +232,20 @@ async def test_get_evolution_history_for_task(seeded_db):
         assert [h.run_number for h in history] == [1, 2, 3]
 
     await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_retrieve_semantic_experiences(seeded_db):
+    """Verifies semantic vector ranking across task prompts."""
+    query_spec = TaskSpec(
+        task_id="sem_query",
+        user_prompt="Survey scientific research literature and synthesize empirical study findings",
+        task_type=TaskType.GENERAL,
+        complexity=ComplexityLevel.LOW,
+    )
+    retriever = MemoryRetriever(seeded_db)
+    semantic_results = await retriever.retrieve_semantic_experiences(query_spec, min_similarity=0.0, limit=2)
+    assert len(semantic_results) >= 1
+    # Check that cosine similarity is computed
+    sim = MemoryRetriever.compute_semantic_similarity(query_spec, semantic_results[0])
+    assert 0.0 <= sim <= 1.0
