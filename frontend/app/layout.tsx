@@ -9,6 +9,11 @@ export const metadata: Metadata = {
   title: "Agent Forge — Autonomous Multi-Agent Evolution Platform",
   description:
     "Submit tasks and watch Agent Forge dynamically synthesize multi-agent architectures, execute them, evaluate results, reflect, and evolve — improving with every run.",
+  icons: {
+    icon: "/logo.png",
+    shortcut: "/logo.png",
+    apple: "/logo.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

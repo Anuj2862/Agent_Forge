@@ -67,6 +67,10 @@ async def _execute_pipeline_core(
         emitter = ExecutionEventEmitter(execution_id=exec_id, task_id=task_id, db=db)
         await emitter.init_sequence_from_db()
 
+    # Capture frozen configuration snapshot at execution start
+    from app.core.settings_manager import settings_manager
+    config_snapshot = settings_manager.get_execution_snapshot()
+
     # 1. Emit Queued & Started Events
     await emitter.emit(
         event_type=ExecutionEventType.EXECUTION_QUEUED,
@@ -77,6 +81,7 @@ async def _execute_pipeline_core(
             "architecture_id": architecture_spec.architecture_id,
             "topology": architecture_spec.topology.value,
             "agent_count": len(architecture_spec.agents),
+            "config_version": config_snapshot.get("config_version", 1),
         },
     )
 
@@ -87,12 +92,14 @@ async def _execute_pipeline_core(
         data={
             "run_number": target_run,
             "agent_count": len(architecture_spec.agents),
+            "config_snapshot_id": config_snapshot.get("snapshot_id"),
         },
     )
 
     # 2. Stage: Graph Compilation
     await emitter.emit(
         event_type=ExecutionEventType.EXECUTION_STAGE_STARTED,
+
         message=f"Compiling LangGraph StateGraph ({len(architecture_spec.agents)} agents, {len(architecture_spec.connections)} edges)",
         stage=ExecutionStage.GRAPH_COMPILATION.value,
         data={"stage_name": ExecutionStage.GRAPH_COMPILATION.value},
@@ -210,6 +217,7 @@ async def _execute_pipeline_core(
 
     execution_result["run_number"] = target_run
     execution_result["architecture_id"] = architecture_spec.architecture_id
+    execution_result["config_snapshot"] = config_snapshot
 
     # 4. End Stage & Terminal Event
     await emitter.emit(

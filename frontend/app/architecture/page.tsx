@@ -10,6 +10,7 @@ import {
   TaskDetail,
 } from "@/lib/api";
 import ArchitectureGraph from "@/components/architecture/ArchitectureGraph";
+import AgentMascot from "@/components/mascot/AgentMascot";
 import TaskSelector from "@/components/TaskSelector";
 
 export default function ArchitecturePage() {
@@ -204,16 +205,21 @@ export default function ArchitecturePage() {
                         transition: "all 0.15s ease",
                       }}
                     >
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>
-                          {agent.name}
+                      <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 8 }}>
+                        <AgentMascot agent={agent} size={38} showStatusBadge={false} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              {agent.name}
+                            </div>
+                            {isEvolved && (
+                              <span className="badge badge-emerald" style={{ fontSize: 9, flexShrink: 0 }}>★ Mutated V2</span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: 11, color: "var(--accent-blue)", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {agent.role}
+                          </div>
                         </div>
-                        {isEvolved && (
-                          <span className="badge badge-emerald" style={{ fontSize: 9 }}>★ Mutated V2</span>
-                        )}
-                      </div>
-                      <div style={{ fontSize: 11, color: "#818cf8", fontWeight: 600, marginBottom: 8 }}>
-                        {agent.role}
                       </div>
                       <p style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.4, marginBottom: 10 }}>
                         {agent.objective}
@@ -248,10 +254,17 @@ export default function ArchitecturePage() {
             <div style={{ padding: "18px 20px" }}>
               {selectedAgent ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                  <div>
-                    <span className="form-label" style={{ display: "block", marginBottom: 4 }}>Agent Name &amp; Role</span>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>{selectedAgent.name}</div>
-                    <div style={{ fontSize: 12, color: "#818cf8" }}>{selectedAgent.role}</div>
+                  <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                    <AgentMascot agent={selectedAgent} size={54} active={true} showStatusBadge={false} />
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <span className="form-label" style={{ display: "block", marginBottom: 2 }}>Agent Identity</span>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {selectedAgent.name}
+                      </div>
+                      <div style={{ fontSize: 12, color: "var(--accent-blue)", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {selectedAgent.role}
+                      </div>
+                    </div>
                   </div>
 
                   <div>

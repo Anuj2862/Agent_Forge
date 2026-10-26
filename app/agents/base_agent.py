@@ -62,9 +62,10 @@ class BaseAgent:
         if api_key:
             try:
                 from google import genai
+                from app.core.settings_manager import settings_manager
 
                 client = genai.Client(api_key=api_key)
-                model_name = getattr(settings, "GEMINI_MODEL", "gemini-1.5-pro")
+                _, model_name = settings_manager.get_model_for_role(self.role)
                 full_contents = f"System: {self.system_prompt}\nUser: {prompt}"
                 response = client.models.generate_content(model=model_name, contents=full_contents)
                 return response.text
@@ -120,8 +121,15 @@ class BaseAgent:
         if input_context_parts:
             combined_input += "\nContext:\n" + "\n".join(input_context_parts)
 
-        # 2. Intentional Tool Execution
-        # Only invoke tools that match the agent's specific objective and are permitted by constraints
+        # 2. Intentional Tool Execution with Policy & Registry Enforcement
+        from app.core.settings_manager import settings_manager
+        from app.tools.tool_registry import tool_registry
+
+        exec_policies = settings_manager.get_execution_policies()
+        max_tool_budget = exec_policies.max_tool_calls_per_agent
+        global_forbidden = set(t.lower() for t in exec_policies.forbidden_tools)
+
+        # Task-level explicit constraint overrides
         forbidden_in_constraints = {
             c.lower().replace("forbidden_tool:", "").strip()
             for c in self.constraints
@@ -129,10 +137,28 @@ class BaseAgent:
         }
 
         for tool_func in self.tools:
-            tool_name = getattr(tool_func, "__name__", str(tool_func)).lower()
+            # Check maximum tool calls budget per agent
+            if len(tool_call_logs) >= max_tool_budget:
+                break
 
-            # Constraint check
-            if any(fb in tool_name for fb in forbidden_in_constraints):
+            tool_name = getattr(tool_func, "__name__", str(tool_func)).lower()
+            canonical_name = (
+                "python_tool" if ("python" in tool_name or "interpret" in tool_name)
+                else ("web_search" if ("search" in tool_name or "web" in tool_name)
+                else ("document_retriever" if ("document" in tool_name or "retriev" in tool_name)
+                else tool_name))
+            )
+
+            # Check if tool is disabled in global ToolRegistry
+            if not tool_registry.is_tool_enabled(canonical_name):
+                continue
+
+            # Check global policy forbidden tools
+            if canonical_name in global_forbidden or tool_name in global_forbidden:
+                continue
+
+            # Check task constraints
+            if any(fb in tool_name or fb in canonical_name for fb in forbidden_in_constraints):
                 continue
 
             # Intentionality check: does the agent role/objective actually warrant this tool?
@@ -157,6 +183,7 @@ class BaseAgent:
                     tool_input = state.get("code") or (
                         f"# Script for {self.role}\nresult = '{self.objective[:50]} processed'"
                     )
+
 
                 if active_emitter:
                     try:

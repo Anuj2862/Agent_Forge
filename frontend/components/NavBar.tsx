@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -32,30 +33,38 @@ export default function NavBar() {
       <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 10 }}>
         <div
           style={{
+            position: "relative",
             width: 34,
             height: 34,
             borderRadius: 9,
-            background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+            overflow: "hidden",
+            boxShadow: "0 0 12px rgba(99, 102, 241, 0.4)",
+            border: "1px solid rgba(139, 92, 246, 0.4)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: 13,
-            fontWeight: 800,
-            color: "#fff",
-            letterSpacing: "-0.5px",
             flexShrink: 0,
+            background: "#030712",
           }}
         >
-          AF
+          <Image
+            src="/logo.png"
+            alt="Agent Forge Logo"
+            width={34}
+            height={34}
+            priority
+            style={{ objectFit: "cover", width: "100%", height: "100%" }}
+          />
         </div>
         <span
           style={{
             fontSize: 16,
-            fontWeight: 700,
-            background: "linear-gradient(135deg, #818cf8, #c4b5fd)",
+            fontWeight: 800,
+            background: "linear-gradient(135deg, #60a5fa, #a78bfa)",
             WebkitBackgroundClip: "text",
             WebkitTextFillColor: "transparent",
             backgroundClip: "text",
+            letterSpacing: "-0.01em",
           }}
         >
           Agent Forge

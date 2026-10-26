@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { AgentLog, ExecutionEvent } from "@/lib/api";
+import AgentMascot from "@/components/mascot/AgentMascot";
 
 interface ExecutionTimelineProps {
   events?: ExecutionEvent[];
@@ -261,20 +262,33 @@ export default function ExecutionTimeline({
                     {event.event_type}
                   </span>
 
-                  {/* Agent ID tag if present */}
+                  {/* Agent ID tag with Mascot if present */}
                   {event.agent_id && (
                     <span
                       style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 5,
                         fontFamily: "'JetBrains Mono', monospace",
                         fontSize: 10.5,
                         color: "var(--blue-primary)",
                         background: "rgba(37, 99, 235, 0.10)",
                         border: "1px solid var(--border)",
-                        padding: "1px 5px",
-                        borderRadius: 3,
+                        padding: "1px 6px 1px 3px",
+                        borderRadius: 4,
                         flexShrink: 0,
                       }}
                     >
+                      <AgentMascot
+                        role={(event.data?.role as string) && (event.data.role as string).toLowerCase() !== "agent" ? (event.data.role as string) : undefined}
+                        agent={{
+                          agent_id: event.agent_id,
+                          name: (event.data?.agent_name as string) || event.agent_id,
+                          role: (event.data?.role as string),
+                        }}
+                        size={18}
+                        status={event.status}
+                      />
                       {event.agent_id}
                     </span>
                   )}

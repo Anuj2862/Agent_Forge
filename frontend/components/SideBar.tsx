@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -150,20 +151,50 @@ export default function SideBar() {
     >
       {/* Logo & Platform Identity */}
       <div className="sidebar-logo">
-        <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 10 }}>
+        <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 12 }}>
           <div
             className="sidebar-logo-icon"
             style={{
-              background: "linear-gradient(135deg, #2563EB 0%, #22D3EE 100%)",
-              boxShadow: "0 0 12px rgba(34, 211, 238, 0.35)",
-              border: "1px solid rgba(255, 255, 255, 0.25)",
+              position: "relative",
+              width: 48,
+              height: 48,
+              borderRadius: 12,
+              overflow: "hidden",
+              boxShadow: "0 0 20px rgba(37, 99, 235, 0.45), 0 0 10px rgba(34, 211, 238, 0.35)",
+              border: "1px solid rgba(34, 211, 238, 0.4)",
+              flexShrink: 0,
+              background: "#030712",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
             }}
           >
-            AF
+            <Image
+              src="/logo.png"
+              alt="Agent Forge Logo"
+              width={48}
+              height={48}
+              priority
+              style={{ objectFit: "cover", width: "100%", height: "100%" }}
+            />
           </div>
           <div className="sidebar-logo-text">
-            <div className="sidebar-logo-title" style={{ color: "var(--text-primary)" }}>Agent Forge</div>
-            <div className="sidebar-logo-sub" style={{ color: "var(--text-muted)" }}>AI Research Studio</div>
+            <div className="sidebar-logo-title" style={{ color: "var(--text-primary)", fontSize: 15.5, fontWeight: 800, letterSpacing: "-0.015em", lineHeight: 1.2 }}>
+              Agent Forge
+            </div>
+            <div
+              className="sidebar-logo-sub"
+              style={{
+                color: "var(--text-muted)",
+                fontSize: 9.5,
+                fontWeight: 600,
+                letterSpacing: "0.07em",
+                textTransform: "uppercase",
+                marginTop: 2,
+              }}
+            >
+              Build • Experiment • Evolve
+            </div>
           </div>
         </Link>
       </div>

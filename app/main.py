@@ -16,10 +16,15 @@ from app.api.evaluation_routes import router as evaluation_router
 from app.api.memory_routes import router as memory_router
 
 
+from app.api.settings_routes import router as settings_router
+from app.core.settings_manager import settings_manager
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Run database initialization on startup."""
+    """Run database initialization and platform settings load on startup."""
     await init_db()
+    await settings_manager.initialize_from_db()
     yield
 
 
@@ -55,18 +60,22 @@ app.include_router(architecture_router)
 app.include_router(execution_router)
 app.include_router(evaluation_router)
 app.include_router(memory_router)
+app.include_router(settings_router)
 
 
 @app.get("/health", tags=["Health Check"])
 async def health_check():
-    """Health check endpoint to verify backend server status."""
+    """Health check endpoint to verify backend server status with real subsystem diagnostics."""
+    health_resp = await settings_manager.check_runtime_health()
     return {
-        "status": "healthy",
+        "status": health_resp.overall_status,
         "app": settings.APP_NAME,
         "version": "0.2.0",
         "environment": settings.APP_ENV,
-        "phase": "Mid-Sem — Member 4: Memory + API + Frontend",
+        "subsystems": health_resp.subsystems,
+        "checked_at": health_resp.checked_at.isoformat(),
     }
+
 
 
 if __name__ == "__main__":

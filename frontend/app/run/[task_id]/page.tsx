@@ -21,6 +21,7 @@ import {
   AgentConfig,
 } from "@/lib/api";
 import ArchitectureGraph from "@/components/architecture/ArchitectureGraph";
+import AgentMascot from "@/components/mascot/AgentMascot";
 import ExecutionTimeline from "@/components/execution/ExecutionTimeline";
 import LiveExecutionStatus, { StreamConnectionStatus } from "@/components/execution/LiveExecutionStatus";
 import MetricsPanel from "@/components/evaluation/MetricsPanel";
@@ -912,8 +913,11 @@ export default function RunPage({ params }: { params?: { task_id?: string } }) {
                   </div>
                   {comparison.architecture_diff.added_agents?.length ? (
                     comparison.architecture_diff.added_agents.map((a: AgentConfig) => (
-                      <div key={a.agent_id} style={{ fontSize: 12, color: "var(--text-primary)", marginBottom: 4 }}>
-                        • <strong>{a.name}</strong> ({a.role}) — tools: {a.tools?.join(", ") || "cognitive"}
+                      <div key={a.agent_id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text-primary)", marginBottom: 6 }}>
+                        <AgentMascot agent={a} size={28} showStatusBadge={false} />
+                        <div>
+                          <strong>{a.name}</strong> ({a.role}) — tools: {a.tools?.join(", ") || "cognitive"}
+                        </div>
                       </div>
                     ))
                   ) : (

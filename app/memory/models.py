@@ -120,3 +120,14 @@ class ExecutionEventORM(Base):
         Index("ix_exec_events_seq", "execution_id", "sequence_number", unique=True),
     )
 
+
+class PlatformSettingsORM(Base):
+    """SQLAlchemy ORM model for persisting platform-wide settings (policies, model matrix, tool states)."""
+
+    __tablename__ = "platform_settings"
+
+    key = Column(String(64), primary_key=True, index=True)
+    value_json = Column(Text, nullable=False)
+    updated_at = Column(DateTime, nullable=False, default=_utc_now, onupdate=_utc_now)
+
+

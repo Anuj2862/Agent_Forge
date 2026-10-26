@@ -5,69 +5,32 @@ import ReactFlow, { Background, Controls, MarkerType } from "reactflow";
 import "reactflow/dist/style.css";
 import { ArchitectureSpec, AgentConfig, Connection } from "@/lib/api";
 import { useTheme } from "@/lib/theme";
+import AgentMascot from "@/components/mascot/AgentMascot";
+import { resolveAgentRole, getRoleMetadata } from "@/lib/mascots";
 
 const defaultNodeTypes = {};
 const defaultEdgeTypes = {};
 
 export function getAgentIdentity(agent: AgentConfig, isLight = false) {
-  const text = `${agent.agent_id} ${agent.name} ${agent.role}`.toLowerCase();
-  if (text.includes("plan") || text.includes("decompos")) {
-    return {
-      name: "Planner",
-      color: isLight ? "#0D9488" : "#2DD4BF",
-      lightColor: isLight ? "rgba(13, 148, 136, 0.12)" : "rgba(45, 212, 191, 0.12)",
-      border: "rgba(45, 212, 191, 0.35)",
-      borderLight: "rgba(13, 148, 136, 0.45)",
-    };
-  }
-  if (text.includes("verif") || text.includes("fact") || text.includes("audit") || text.includes("check")) {
-    return {
-      name: "Verifier",
-      color: isLight ? "#0891B2" : "#22D3EE",
-      lightColor: isLight ? "rgba(8, 145, 178, 0.12)" : "rgba(34, 211, 238, 0.12)",
-      border: "rgba(34, 211, 238, 0.40)",
-      borderLight: "rgba(8, 145, 178, 0.45)",
-    };
-  }
-  if (text.includes("research") || text.includes("retriev") || text.includes("search") || text.includes("gather")) {
-    return {
-      name: "Researcher",
-      color: isLight ? "#2563EB" : "#3B82F6",
-      lightColor: isLight ? "rgba(37, 99, 235, 0.12)" : "rgba(59, 130, 246, 0.12)",
-      border: "rgba(59, 130, 246, 0.35)",
-      borderLight: "rgba(37, 99, 235, 0.45)",
-    };
-  }
-  if (text.includes("analy") || text.includes("reason") || text.includes("eval")) {
-    return {
-      name: "Analyst",
-      color: isLight ? "#7C3AED" : "#A78BFA",
-      lightColor: isLight ? "rgba(124, 58, 237, 0.12)" : "rgba(167, 139, 250, 0.12)",
-      border: "rgba(167, 139, 250, 0.35)",
-      borderLight: "rgba(124, 58, 237, 0.45)",
-    };
-  }
-  if (text.includes("critic") || text.includes("review") || text.includes("reflec")) {
-    return {
-      name: "Critic",
-      color: isLight ? "#DC2626" : "#F87171",
-      lightColor: isLight ? "rgba(220, 38, 38, 0.12)" : "rgba(248, 113, 113, 0.12)",
-      border: "rgba(248, 113, 113, 0.35)",
-      borderLight: "rgba(220, 38, 38, 0.45)",
-    };
-  }
+  const role = resolveAgentRole(agent);
+  const meta = getRoleMetadata(role, isLight);
   return {
-    name: "Executor",
-    color: isLight ? "#B77900" : "#FBBF24",
-    lightColor: isLight ? "rgba(183, 121, 0, 0.12)" : "rgba(251, 191, 36, 0.12)",
-    border: "rgba(251, 191, 36, 0.35)",
-    borderLight: "rgba(183, 121, 0, 0.45)",
+    role,
+    name: meta.name,
+    tagline: meta.tagline,
+    color: meta.color,
+    lightColor: meta.lightColor,
+    border: meta.border,
+    borderLight: meta.borderLight,
+    src: meta.src,
+    webpSrc: meta.webpSrc,
   };
 }
 
+
 interface Props {
   architecture: ArchitectureSpec;
-  agentStatuses?: Record<string, "waiting" | "active" | "completed" | "failed">;
+  agentStatuses?: Record<string, "waiting" | "active" | "running" | "completed" | "failed" | "idle" | "inconclusive" | string>;
   evolvedAgentIds?: string[];
   onSelectAgent?: (agent: AgentConfig) => void;
 }
@@ -179,11 +142,35 @@ export default function ArchitectureGraph({
       const identity = getAgentIdentity(agent, isLight);
       const isEvolved = evolvedAgentIds.includes(agent.agent_id);
       const status = agentStatuses[agent.agent_id] || "waiting";
+      const isSelected = inspectedAgent?.agent_id === agent.agent_id;
+      const isActive = status === "active" || status === "running";
       const pos = positions[agent.agent_id] || { x: 60 + index * stepX, y: 130 };
 
-      const borderColor = isEvolved
+      const baseBorder = isEvolved
         ? (isLight ? "#059669" : "rgba(16, 185, 129, 0.6)")
         : (isLight ? identity.borderLight : identity.border);
+
+      const borderColor = isSelected
+        ? (isLight ? "#2563EB" : "#38BDF8")
+        : isActive
+        ? (isLight ? "#0284C7" : "#0EA5E9")
+        : baseBorder;
+
+      const nodeBoxShadow = isSelected
+        ? (isLight
+            ? "0 0 0 2px #2563EB, 0 8px 24px rgba(37, 99, 235, 0.25)"
+            : "0 0 0 2px #38BDF8, 0 0 24px rgba(56, 189, 248, 0.45)")
+        : isActive
+        ? (isLight
+            ? "0 0 0 2px #0EA5E9, 0 6px 20px rgba(14, 165, 233, 0.2)"
+            : "0 0 0 2px #38BDF8, 0 0 20px rgba(56, 189, 248, 0.35)")
+        : isLight
+        ? (isEvolved
+            ? "0 4px 16px rgba(16, 185, 129, 0.22), 0 1px 3px rgba(0,0,0,0.06)"
+            : "0 4px 16px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(15, 23, 42, 0.04)")
+        : (isEvolved
+            ? "0 4px 16px rgba(16, 185, 129, 0.18)"
+            : "0 4px 16px rgba(0, 0, 0, 0.25)");
 
       return {
         id: agent.agent_id,
@@ -199,7 +186,7 @@ export default function ArchitectureGraph({
               role="button"
               tabIndex={0}
               aria-label={`Inspect agent ${agent.name}`}
-              style={{ padding: "10px 14px", position: "relative" }}
+              style={{ padding: "10px 12px 10px 10px", position: "relative" }}
             >
               {/* Top Accent Line */}
               <div
@@ -209,57 +196,99 @@ export default function ArchitectureGraph({
                   left: 0,
                   right: 0,
                   height: 3,
-                  background: isEvolved ? "#10b981" : identity.color,
+                  background: isEvolved ? "#10b981" : isSelected ? "#38bdf8" : identity.color,
                   borderTopLeftRadius: 8,
                   borderTopRightRadius: 8,
                 }}
               />
 
-              {/* Row 1: Monospace ID + Role / Evolution Badge */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6, gap: 8 }}>
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "var(--text-muted)", letterSpacing: "0.02em" }}>
-                  {agent.agent_id}
-                </span>
-                {isEvolved ? (
-                  <span
+              {/* Row 1: Mascot on Left + ID, Role, Name on Right */}
+              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <AgentMascot
+                  role={identity.role}
+                  agent={agent}
+                  size={46}
+                  status={status}
+                  active={isActive || isSelected}
+                  showStatusBadge={true}
+                />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 4, marginBottom: 2 }}>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "var(--text-muted)", letterSpacing: "0.02em" }}>
+                      {agent.agent_id}
+                    </span>
+                    {isEvolved ? (
+                      <span
+                        style={{
+                          fontSize: 9,
+                          fontWeight: 700,
+                          color: isLight ? "#047857" : "#10b981",
+                          background: isLight ? "#DCFCE7" : "rgba(16, 185, 129, 0.15)",
+                          padding: "1px 5px",
+                          borderRadius: 4,
+                          border: isLight ? "1px solid #86EFAC" : "1px solid rgba(16, 185, 129, 0.3)",
+                        }}
+                      >
+                        ★ V2 Mutated
+                      </span>
+                    ) : (
+                      <span
+                        style={{
+                          fontSize: 9.5,
+                          fontWeight: 700,
+                          color: identity.color,
+                          letterSpacing: "0.02em",
+                        }}
+                      >
+                        {identity.name}
+                      </span>
+                    )}
+                  </div>
+                  <div
                     style={{
-                      fontSize: 10,
-                      fontWeight: 600,
-                      color: isLight ? "#047857" : "#10b981",
-                      background: isLight ? "#DCFCE7" : "rgba(16, 185, 129, 0.15)",
-                      padding: "1px 6px",
-                      borderRadius: 4,
-                      border: isLight ? "1px solid #86EFAC" : "1px solid rgba(16, 185, 129, 0.3)",
+                      fontSize: 13,
+                      fontWeight: 700,
+                      color: "var(--text-primary)",
+                      lineHeight: 1.25,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
                     }}
+                    title={agent.name}
                   >
-                    ★ V2 Mutated
-                  </span>
-                ) : (
-                  <span
+                    {agent.name}
+                  </div>
+                  <div
                     style={{
-                      fontSize: 10.5,
-                      fontWeight: 600,
-                      color: identity.color,
+                      fontSize: 11,
+                      color: "var(--text-secondary)",
+                      lineHeight: 1.25,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      marginTop: 1,
                     }}
+                    title={agent.role}
                   >
-                    {identity.name}
-                  </span>
-                )}
+                    {agent.role}
+                  </div>
+                </div>
               </div>
 
-              {/* Row 2: Agent Name */}
-              <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--text-primary)", lineHeight: 1.3, marginBottom: 2 }}>
-                {agent.name}
-              </div>
-
-              {/* Row 3: Role Definition */}
-              <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 6, lineHeight: 1.3 }}>
-                {agent.role}
-              </div>
-
-              {/* Row 4: Tools Summary or Execution Status */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, fontSize: 11, borderTop: "1px solid var(--border-soft)", paddingTop: 6, marginTop: 2 }}>
-                <span style={{ color: "var(--text-muted)", fontSize: 10.5 }}>
+              {/* Bottom: Tools Summary + Status Tag */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 6,
+                  fontSize: 10.5,
+                  borderTop: "1px solid var(--border-soft)",
+                  paddingTop: 6,
+                  marginTop: 8,
+                }}
+              >
+                <span style={{ color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 10 }}>
                   {agent.tools && agent.tools.length > 0 ? (
                     <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>
                       {agent.tools.slice(0, 2).join(", ")}
@@ -276,9 +305,11 @@ export default function ArchitectureGraph({
                       display: "inline-flex",
                       alignItems: "center",
                       gap: 4,
-                      fontSize: 10.5,
-                      color: status === "active" ? "#38bdf8" : status === "completed" ? "#34d399" : "#f87171",
+                      fontSize: 10,
+                      fontWeight: 600,
+                      color: status === "active" || status === "running" ? "#38bdf8" : status === "completed" ? "#34d399" : "#f87171",
                       textTransform: "capitalize",
+                      flexShrink: 0,
                     }}
                   >
                     <span
@@ -286,7 +317,7 @@ export default function ArchitectureGraph({
                         width: 5,
                         height: 5,
                         borderRadius: "50%",
-                        background: status === "active" ? "#38bdf8" : status === "completed" ? "#34d399" : "#f87171",
+                        background: status === "active" || status === "running" ? "#38bdf8" : status === "completed" ? "#34d399" : "#f87171",
                       }}
                     />
                     {status}
@@ -299,37 +330,48 @@ export default function ArchitectureGraph({
         style: {
           background: isLight ? "#FFFFFF" : "var(--bg-card)",
           border: `1.5px solid ${borderColor}`,
-          borderRadius: 8,
-          width: 275,
-          boxShadow: isLight
-            ? (isEvolved
-                ? "0 4px 16px rgba(16, 185, 129, 0.22), 0 1px 3px rgba(0,0,0,0.06)"
-                : "0 4px 16px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(15, 23, 42, 0.04)")
-            : (isEvolved
-                ? "0 4px 16px rgba(16, 185, 129, 0.18)"
-                : "0 4px 16px rgba(0, 0, 0, 0.25)"),
+          borderRadius: 10,
+          width: 285,
+          boxShadow: nodeBoxShadow,
           backdropFilter: "blur(12px)",
           WebkitBackdropFilter: "blur(12px)",
+          transition: "all 0.18s ease",
         },
       };
     });
 
-    const computedEdges = connections.map((conn: Connection, idx: number) => ({
-      id: `e-${conn.source}-${conn.target}-${idx}`,
-      source: conn.source,
-      target: conn.target,
-      animated: true,
-      style: {
-        stroke: isLight ? "#2563EB" : "#38BDF8",
-        strokeWidth: 1.5,
-      },
-      markerEnd: {
-        type: MarkerType.ArrowClosed,
-        color: isLight ? "#2563EB" : "#38BDF8",
-        width: 14,
-        height: 14,
-      },
-    }));
+    const computedEdges = connections.map((conn: Connection, idx: number) => {
+      const sourceAgent = agents.find((a) => a.agent_id === conn.source);
+      const targetAgent = agents.find((a) => a.agent_id === conn.target);
+      const targetRole = targetAgent ? resolveAgentRole(targetAgent) : "executor";
+      const sourceRole = sourceAgent ? resolveAgentRole(sourceAgent) : "executor";
+
+      let strokeColor = isLight ? "#2563EB" : "#38BDF8"; // electric-blue
+      if (targetRole === "verifier" || targetAgent?.role.toLowerCase().includes("verif")) {
+        strokeColor = isLight ? "#0D9488" : "#22D3EE"; // cyan/teal
+      } else if (sourceRole === "analyst" || targetRole === "analyst") {
+        strokeColor = isLight ? "#7C3AED" : "#A78BFA"; // violet
+      } else if (sourceRole === "executor" || targetRole === "executor") {
+        strokeColor = isLight ? "#D97706" : "#FBBF24"; // yellow/amber accent
+      }
+
+      return {
+        id: `e-${conn.source}-${conn.target}-${idx}`,
+        source: conn.source,
+        target: conn.target,
+        animated: true,
+        style: {
+          stroke: strokeColor,
+          strokeWidth: 1.75,
+        },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: strokeColor,
+          width: 14,
+          height: 14,
+        },
+      };
+    });
 
     return { nodes: computedNodes, edges: computedEdges };
   }, [
@@ -339,6 +381,7 @@ export default function ArchitectureGraph({
     agentStatuses,
     evolvedAgentIds,
     isLight,
+    inspectedAgent?.agent_id,
     onSelectAgent,
   ]);
 
@@ -496,9 +539,16 @@ export default function ArchitectureGraph({
                     e.currentTarget.style.transform = "none";
                   }}
                 >
-                  {/* Top Bar: #num, Role Tag, Agent Name, ID */}
+                  {/* Top Bar: Mascot, #num, Role Tag, Agent Name, ID */}
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                      <AgentMascot
+                        role={identity.role}
+                        agent={agent}
+                        size={36}
+                        status={agentStatuses[agent.agent_id]}
+                        showStatusBadge={true}
+                      />
                       <span
                         style={{
                           fontSize: 11,
@@ -626,13 +676,26 @@ export default function ArchitectureGraph({
             boxShadow: "0 12px 32px rgba(0, 0, 0, 0.15)",
           }}
         >
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", borderBottom: "1px solid var(--border-soft)", paddingBottom: 10 }}>
-            <div>
-              <span style={{ fontSize: 10.5, color: "var(--blue-primary)", fontWeight: 600 }}>
-                Agent Inspector
-              </span>
-              <h4 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", marginTop: 2 }}>{inspectedAgent.name}</h4>
-              <p style={{ fontSize: 12, color: "var(--text-muted)" }}>{inspectedAgent.role}</p>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--border-soft)", paddingBottom: 12 }}>
+            <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0, flex: 1 }}>
+              <AgentMascot
+                agent={inspectedAgent}
+                size={54}
+                status={agentStatuses[inspectedAgent.agent_id]}
+                showStatusBadge={true}
+                active={true}
+              />
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <span style={{ fontSize: 10, color: "var(--blue-primary)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  Agent Inspector
+                </span>
+                <h4 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {inspectedAgent.name}
+                </h4>
+                <p style={{ fontSize: 11.5, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {inspectedAgent.role}
+                </p>
+              </div>
             </div>
             <button
               onClick={() => setInspectedAgent(null)}

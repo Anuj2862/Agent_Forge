@@ -527,9 +527,146 @@ export async function getMemoryStatus(): Promise<{
   return r.data;
 }
 
-/* ── Health ──────────────────────────────────────────────────────── */
+/* ── Health & Platform Diagnostics ───────────────────────────────── */
 
 export async function getHealth(): Promise<HealthResponse> {
   const r = await api.get("/health");
   return r.data;
 }
+
+/* ── Platform Settings, Tool Registry & Model Matrix API ────────── */
+
+export interface ToolMetadata {
+  name: string;
+  display_name: string;
+  description: string;
+  category: string;
+  safety_classification: string;
+  implementation_status: string;
+  enabled: boolean;
+  required_credentials: string[];
+  credentials_configured: boolean;
+  input_schema: Record<string, unknown>;
+  last_tested_at?: string;
+  last_test_status?: string;
+  last_test_latency_ms?: number;
+}
+
+export interface ToolTestResponse {
+  tool_name: string;
+  status: string;
+  duration_ms: number;
+  output_preview: string;
+  error?: string;
+  tested_at: string;
+}
+
+export interface RoleModelConfig {
+  role: string;
+  provider: string;
+  model_identifier: string;
+  temperature: number;
+  is_supported: boolean;
+  credential_status: string;
+}
+
+export interface ModelMatrixConfig {
+  roles: Record<string, RoleModelConfig>;
+  supported_providers: string[];
+  unsupported_providers: string[];
+}
+
+export interface ExecutionPolicyConfig {
+  max_agents: number;
+  max_execution_duration_seconds: number;
+  max_tool_calls_per_agent: number;
+  allowed_tools: string[];
+  forbidden_tools: string[];
+  require_verification_by_default: boolean;
+  sandbox_isolation_enabled: boolean;
+}
+
+export interface SubsystemHealth {
+  name: string;
+  status: string;
+  latency_ms?: number;
+  details: Record<string, unknown>;
+  error?: string;
+  checked_at: string;
+}
+
+export interface SystemHealthResponse {
+  overall_status: string;
+  version: string;
+  environment: string;
+  subsystems: Record<string, SubsystemHealth>;
+  checked_at: string;
+}
+
+export interface SettingsSummaryResponse {
+  version: string;
+  tools: ToolMetadata[];
+  model_matrix: ModelMatrixConfig;
+  execution_policies: ExecutionPolicyConfig;
+  health_summary: SystemHealthResponse;
+}
+
+export async function getSettingsSummary(): Promise<SettingsSummaryResponse> {
+  const r = await api.get<SettingsSummaryResponse>("/settings/");
+  return r.data;
+}
+
+export async function listRegisteredTools(): Promise<ToolMetadata[]> {
+  const r = await api.get<ToolMetadata[]>("/settings/tools");
+  return r.data;
+}
+
+export async function getToolMetadata(toolName: string): Promise<ToolMetadata> {
+  const r = await api.get<ToolMetadata>(`/settings/tools/${toolName}`);
+  return r.data;
+}
+
+export async function toggleTool(toolName: string, enabled: boolean): Promise<ToolMetadata> {
+  const r = await api.post<ToolMetadata>(`/settings/tools/${toolName}/toggle`, { enabled });
+  return r.data;
+}
+
+export async function testRegisteredTool(
+  toolName: string,
+  testInput?: Record<string, unknown>
+): Promise<ToolTestResponse> {
+  const r = await api.post<ToolTestResponse>(`/settings/tools/${toolName}/test`, {
+    test_input: testInput,
+  });
+  return r.data;
+}
+
+export async function getModelMatrix(): Promise<ModelMatrixConfig> {
+  const r = await api.get<ModelMatrixConfig>("/settings/models");
+  return r.data;
+}
+
+export async function updateModelMatrix(
+  assignments: Record<string, Partial<RoleModelConfig>>
+): Promise<ModelMatrixConfig> {
+  const r = await api.put<ModelMatrixConfig>("/settings/models", { assignments });
+  return r.data;
+}
+
+export async function getExecutionPolicies(): Promise<ExecutionPolicyConfig> {
+  const r = await api.get<ExecutionPolicyConfig>("/settings/policies");
+  return r.data;
+}
+
+export async function updateExecutionPolicies(
+  update: Partial<ExecutionPolicyConfig>
+): Promise<ExecutionPolicyConfig> {
+  const r = await api.put<ExecutionPolicyConfig>("/settings/policies", update);
+  return r.data;
+}
+
+export async function getRuntimeHealth(): Promise<SystemHealthResponse> {
+  const r = await api.get<SystemHealthResponse>("/settings/health");
+  return r.data;
+}
+

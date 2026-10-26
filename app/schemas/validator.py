@@ -136,8 +136,22 @@ class ArchitectureValidator:
             if c_verif:
                 effective_require_verification = True
 
+        # Fallback to global platform execution policies
+        try:
+            from app.core.settings_manager import settings_manager
+            platform_policy = settings_manager.get_execution_policies()
+            if effective_max_agents is None:
+                effective_max_agents = platform_policy.max_agents
+            if platform_policy.forbidden_tools:
+                effective_forbidden_tools.update(platform_policy.forbidden_tools)
+            if platform_policy.require_verification_by_default:
+                effective_require_verification = True
+        except Exception:
+            pass
+
         # 3. Hard Constraint: Max Agents
         if effective_max_agents is not None:
+
             if len(agents) > effective_max_agents:
                 errors.append(
                     ValidationErrorDetail(
